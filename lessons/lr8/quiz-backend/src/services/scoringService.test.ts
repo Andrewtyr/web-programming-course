@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { scoringService } from './scoringService.js'
 
+// Эти тесты проверяют "правила игры" для подсчёта баллов.
+// Если потом кто-то изменит формулу и случайно сломает логику, тесты это сразу покажут.
 describe('ScoringService.scoreMultipleSelect', () => {
   it('gives full score for all correct answers', () => {
     expect(scoringService.scoreMultipleSelect(['A', 'B'], ['A', 'B'])).toBe(2)
