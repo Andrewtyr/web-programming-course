@@ -1,16 +1,18 @@
 /// <reference types="node" />
 import { Hono } from 'hono'
-import { sign, verify } from 'hono/jwt'
-import { prisma } from '../lib/prisma.js'
-import { githubCallbackSchema } from '../utils/validation.js'
+import { sign, verify } from 'hono/jwt'                  // sign — создаёт токен, verify — проверяет токен
+import { prisma } from '../lib/prisma.js'                 // связь с базой данных
+import { githubCallbackSchema } from '../utils/validation.js'  // проверка, что пришёл правильный код от GitHub
 
-const authRoutes = new Hono()
+const authRoutes = new Hono()  // группа маршрутов для /api/auth
 
+// Секретный ключ для наших токенов — обязательно должен быть в .env
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is not set in .env')
 }
 
+// Типы данных, которые приходят от GitHub (чтобы код понимал структуру)
 type GitHubTokenResponse = {
   access_token?: string
   error?: string
@@ -30,6 +32,7 @@ type GitHubEmailResponse = {
   verified: boolean
 }
 
+// Маленькая функция: вытаскивает токен из заголовка Authorization: Bearer ...
 function getBearerToken(authorization?: string): string | null {
   if (!authorization) return null
   const [scheme, token] = authorization.split(' ')
@@ -37,6 +40,7 @@ function getBearerToken(authorization?: string): string | null {
   return token
 }
 
+// POST /api/auth/github/callback — сюда приходит код после нажатия "Войти через GitHub"
 authRoutes.post('/github/callback', async (c) => {
   let body: unknown
   try {
@@ -45,6 +49,7 @@ authRoutes.post('/github/callback', async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
+  // Проверяем, что пришёл нормальный код
   const parsed = githubCallbackSchema.safeParse(body)
   if (!parsed.success) {
     return c.json({ error: 'Validation error', details: parsed.error.flatten() }, 400)
@@ -56,12 +61,14 @@ authRoutes.post('/github/callback', async (c) => {
   let email = ''
   let name = ''
 
+  // Специальный режим для тестов: если код начинается с test_ — создаём фейкового пользователя
   if (code.startsWith('test_')) {
     const suffix = code.slice(5) || 'student'
     githubId = `test_${suffix}`
     email = `${suffix}@example.com`
     name = `Test User ${suffix}`
   } else {
+    // Настоящий вход через GitHub
     const clientId = process.env.GITHUB_CLIENT_ID
     const clientSecret = process.env.GITHUB_CLIENT_SECRET
 
@@ -69,6 +76,7 @@ authRoutes.post('/github/callback', async (c) => {
       return c.json({ error: 'GitHub OAuth is not configured' }, 500)
     }
 
+    // Меняем временный код на постоянный токен доступа
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -92,6 +100,7 @@ authRoutes.post('/github/callback', async (c) => {
       return c.json({ error: tokenData.error_description ?? 'Invalid GitHub code' }, 401)
     }
 
+    // Получаем основную информацию о пользователе
     const userRes = await fetch('https://api.github.com/user', {
       headers: {
         Accept: 'application/vnd.github+json',
@@ -110,6 +119,7 @@ authRoutes.post('/github/callback', async (c) => {
     name = ghUser.name || ghUser.login || `github_${ghUser.id}`
     email = ghUser.email ?? ''
 
+    // Если email не пришёл сразу — запрашиваем список email'ов
     if (!email) {
       const emailsRes = await fetch('https://api.github.com/user/emails', {
         headers: {
@@ -130,17 +140,20 @@ authRoutes.post('/github/callback', async (c) => {
       }
     }
 
+    // Последний резервный вариант email'а от GitHub
     if (!email) {
       email = `${ghUser.id}+github@users.noreply.github.com`
     }
   }
 
+  // Создаём или находим пользователя в нашей базе по githubId
   const user = await prisma.user.upsert({
     where: { githubId },
     update: { email, name },
     create: { githubId, email, name },
   })
 
+  // Создаём наш собственный токен на 7 дней
   const token = await sign(
     {
       userId: user.id,
@@ -151,6 +164,7 @@ authRoutes.post('/github/callback', async (c) => {
     'HS256'
   )
 
+  // Возвращаем токен и основные данные пользователя
   return c.json({
     token,
     user: {
@@ -163,6 +177,7 @@ authRoutes.post('/github/callback', async (c) => {
   })
 })
 
+// GET /api/auth/me — "кто я сейчас?" (показывает данные по токену)
 authRoutes.get('/me', async (c) => {
   const token = getBearerToken(c.req.header('Authorization'))
   if (!token) {
