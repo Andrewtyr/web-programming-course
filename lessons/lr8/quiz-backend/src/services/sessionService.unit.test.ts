@@ -1,34 +1,37 @@
 /**
  * Unit-тесты `SessionService`: Prisma замокан через `vi.mock` + `vi.fn()` (без реальной БД).
  * Проверяем доменные ошибки (404/403/400) при невалидной сессии.
+ *
+ * Важно: не вызывать `mockDeep` / другие импорты из пакетов внутри `vi.hoisted` —
+ * импорты ещё не инициализированы → ReferenceError `__vi_import_*__`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { prisma } = vi.hoisted(() => {
-  const prisma = {
+const { prismaMock } = vi.hoisted(() => {
+  const prismaMock = {
     $transaction: vi.fn(),
     session: { findUnique: vi.fn() },
     question: { findUnique: vi.fn() },
     answer: { upsert: vi.fn() },
   }
-  return { prisma }
+  return { prismaMock }
 })
 
-vi.mock('../lib/prisma.js', () => ({ prisma }))
+vi.mock('../lib/prisma.js', () => ({ prisma: prismaMock }))
 
-import { prisma as prismaMock } from '../lib/prisma.js'
+import { prisma } from '../lib/prisma.js'
 import { sessionService } from './sessionService.js'
 
 beforeEach(() => {
   vi.resetAllMocks()
-  prismaMock.$transaction.mockImplementation(
-    async (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock)
+  prisma.$transaction.mockImplementation(
+    async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma)
   )
 })
 
 describe('SessionService.submitAnswer', () => {
   it('throws ServiceError 404 when session not found', async () => {
-    prismaMock.session.findUnique.mockResolvedValueOnce(null)
+    prisma.session.findUnique.mockResolvedValueOnce(null)
 
     await expect(
       sessionService.submitAnswer('sid', 'qid', 'A', 'uid')
@@ -36,7 +39,7 @@ describe('SessionService.submitAnswer', () => {
   })
 
   it('throws ServiceError 403 when session belongs to another user', async () => {
-    prismaMock.session.findUnique.mockResolvedValueOnce({
+    prisma.session.findUnique.mockResolvedValueOnce({
       id: 'sid',
       userId: 'other',
       status: 'in_progress',
@@ -49,7 +52,7 @@ describe('SessionService.submitAnswer', () => {
   })
 
   it('throws ServiceError 400 when session already completed', async () => {
-    prismaMock.session.findUnique.mockResolvedValueOnce({
+    prisma.session.findUnique.mockResolvedValueOnce({
       id: 'sid',
       userId: 'uid',
       status: 'completed',
