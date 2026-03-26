@@ -12,6 +12,9 @@ const databaseUrl =
   'file:' + path.join(root, 'prisma', 'test.db').replace(/\\/g, '/')
 
 export default defineConfig({
+  poolOptions: {
+    threads: { singleThread: true },
+  },
   test: {
     include: ['src/**/*.unit.test.ts', 'src/**/*.feature.test.ts'],
     env: {
@@ -21,9 +24,6 @@ export default defineConfig({
     globalSetup: ['./tests/setup/global-setup.ts'],
     setupFiles: ['./tests/setup/vitest-setup.ts'],
     fileParallelism: false,
-    poolOptions: {
-      threads: { singleThread: true },
-    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

@@ -6,6 +6,8 @@
   - Материалы: [slides.html](docs/slides-standalone/slides.html)
   - Справочные материалы: [GUIDE.md](docs/GUIDE.md) | [CHEATSHEET.md](docs/CHEATSHEET.md) | [Interactive Examples](docs/interactive.html)
 
+- **Разбор проекта простыми словами:** [QUIZ-BACKEND-LR10.md](QUIZ-BACKEND-LR10.md)
+
 - **Практическая работа:** Объемный блок по тестированию backend
 
 ---

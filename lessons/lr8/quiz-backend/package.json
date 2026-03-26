@@ -16,7 +16,6 @@
     "test:coverage": "vitest run --coverage",
     "prisma:studio": "prisma studio"
   },
-
   "dependencies": {
     "@hono/node-server": "^1.19.11",
     "@prisma/adapter-better-sqlite3": "^7.5.0",
