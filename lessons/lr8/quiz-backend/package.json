@@ -9,8 +9,11 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-     "test": "vitest run",
-  "test:watch": "vitest",
+    "test:unit": "vitest run src/services/scoringService.unit.test.ts src/utils/validation.unit.test.ts src/services/sessionService.unit.test.ts",
+    "test:feature": "vitest run src/routes/auth.feature.test.ts src/routes/sessions.feature.test.ts src/routes/admin.feature.test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "prisma:studio": "prisma studio"
   },
 
@@ -26,7 +29,10 @@
   },
   "devDependencies": {
     "@types/node": "^25.4.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "vitest-mock-extended": "^3.1.0"
   }
 }

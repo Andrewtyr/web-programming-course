@@ -1,3 +1,7 @@
+/**
+ * Маршруты `/api/admin`: CRUD вопросов, пакетная загрузка, модерация эссе, статистика.
+ * Перед каждым обработчиком — middleware `requireAdmin` (JWT + роль `admin` в БД).
+ */
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma.js'                    // связь с базой
 import { requireAdmin } from '../middleware/admin.js'       // проверка: только админ может сюда заходить

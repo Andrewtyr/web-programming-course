@@ -1,3 +1,8 @@
+/**
+ * Маршруты `/api/auth`: OAuth GitHub (обмен code на пользователя, upsert в БД, выдача JWT),
+ * и `GET /me` — текущий пользователь по Bearer-токену.
+ * Коды с префиксом `test_` обходят GitHub API для локальных/тестовых сценариев.
+ */
 /// <reference types="node" />
 import { Hono } from 'hono'
 import { sign, verify } from 'hono/jwt'                  // sign — создаёт токен, verify — проверяет токен

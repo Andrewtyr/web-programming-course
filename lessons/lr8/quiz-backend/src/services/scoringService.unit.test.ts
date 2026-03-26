@@ -1,3 +1,6 @@
+/**
+ * Unit-тесты чистой логики подсчёта баллов (`ScoringService`) без зависимостей от БД.
+ */
 import { describe, it, expect } from 'vitest'
 import { scoringService } from './scoringService.js'
 

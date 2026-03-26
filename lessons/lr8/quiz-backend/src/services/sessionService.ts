@@ -1,3 +1,8 @@
+/**
+ * Сервис прохождения квиза: ответ на вопрос (транзакция, проверка владельца сессии, подсчёт баллов
+ * через `scoringService`) и завершение сессии с итоговым score.
+ * Ошибки домена — `ServiceError` с HTTP-статусом для маршрутов.
+ */
 import { prisma } from '../lib/prisma.js'         
 import { scoringService } from './scoringService.js' 
 

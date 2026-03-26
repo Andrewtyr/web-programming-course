@@ -1,3 +1,7 @@
+/**
+ * Middleware для админских маршрутов: Bearer JWT → userId → пользователь в БД → только `role === 'admin'`.
+ * Иначе 401 (нет/битый токен), 404 (нет пользователя), 403 (не админ).
+ */
 /// <reference types="node" />
 import type { MiddlewareHandler } from 'hono'   // тип для middleware в Hono (промежуточная функция)
 import { verify } from 'hono/jwt'               // проверяет JWT-токен

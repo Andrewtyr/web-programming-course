@@ -1,3 +1,7 @@
+/**
+ * Маршруты `/api/sessions`: создание сессии теста, просмотр, отправка ответа, завершение.
+ * Все защищённые действия требуют валидный JWT; бизнес-логика в `sessionService`.
+ */
 import { Hono } from 'hono'
 import { verify } from 'hono/jwt'                  // проверяет JWT-токен
 import { prisma } from '../lib/prisma.js'           // связь с базой данных

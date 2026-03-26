@@ -1,0 +1,63 @@
+/**
+ * Unit-тесты `SessionService`: Prisma замокан через `vi.mock` + `vi.fn()` (без реальной БД).
+ * Проверяем доменные ошибки (404/403/400) при невалидной сессии.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const { prisma } = vi.hoisted(() => {
+  const prisma = {
+    $transaction: vi.fn(),
+    session: { findUnique: vi.fn() },
+    question: { findUnique: vi.fn() },
+    answer: { upsert: vi.fn() },
+  }
+  return { prisma }
+})
+
+vi.mock('../lib/prisma.js', () => ({ prisma }))
+
+import { prisma as prismaMock } from '../lib/prisma.js'
+import { sessionService } from './sessionService.js'
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  prismaMock.$transaction.mockImplementation(
+    async (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock)
+  )
+})
+
+describe('SessionService.submitAnswer', () => {
+  it('throws ServiceError 404 when session not found', async () => {
+    prismaMock.session.findUnique.mockResolvedValueOnce(null)
+
+    await expect(
+      sessionService.submitAnswer('sid', 'qid', 'A', 'uid')
+    ).rejects.toMatchObject({ message: 'Session not found', status: 404 })
+  })
+
+  it('throws ServiceError 403 when session belongs to another user', async () => {
+    prismaMock.session.findUnique.mockResolvedValueOnce({
+      id: 'sid',
+      userId: 'other',
+      status: 'in_progress',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    await expect(
+      sessionService.submitAnswer('sid', 'qid', 'A', 'uid')
+    ).rejects.toMatchObject({ message: 'Forbidden', status: 403 })
+  })
+
+  it('throws ServiceError 400 when session already completed', async () => {
+    prismaMock.session.findUnique.mockResolvedValueOnce({
+      id: 'sid',
+      userId: 'uid',
+      status: 'completed',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    await expect(
+      sessionService.submitAnswer('sid', 'qid', 'A', 'uid')
+    ).rejects.toMatchObject({ message: 'Session already completed', status: 400 })
+  })
+})
