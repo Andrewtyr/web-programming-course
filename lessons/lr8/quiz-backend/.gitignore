@@ -5,3 +5,7 @@ node_modules
 /generated/prisma
 prisma/test.db
 prisma/test.db-journal
+
+dist
+coverage
+.last-release-tag

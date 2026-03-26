@@ -5,33 +5,45 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "lint": "eslint src prisma.config.ts",
     "test:unit": "vitest run src/services/scoringService.unit.test.ts src/utils/validation.unit.test.ts src/services/sessionService.unit.test.ts",
     "test:feature": "vitest run src/routes/auth.feature.test.ts src/routes/sessions.feature.test.ts src/routes/admin.feature.test.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "docker:build": "docker build -t quiz-backend:local .",
+    "docker:run": "docker run --rm -p 3000:3000 --env-file .env quiz-backend:local",
+    "compose:up": "docker compose up --build -d",
+    "compose:down": "docker compose down -v",
+    "compose:logs": "docker compose logs -f backend",
+    "ci:local:linux": "bash ./scripts/local-release.sh",
+    "ci:local:win": "powershell -ExecutionPolicy Bypass -File .\\scripts\\local-release.ps1"
   },
 
   "dependencies": {
     "@hono/node-server": "^1.19.11",
-    "@prisma/adapter-better-sqlite3": "^7.5.0",
+    "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
-    "better-sqlite3": "^11.10.0",
     "dotenv": "^17.3.1",
     "hono": "^4.12.7",
+    "pg": "^8.16.0",
     "prisma": "^7.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^25.4.0",
     "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.39.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.0",
     "vitest": "^3.2.4",
     "vitest-mock-extended": "^3.1.0"
   }

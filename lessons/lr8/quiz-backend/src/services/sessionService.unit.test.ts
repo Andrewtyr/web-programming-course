@@ -22,16 +22,20 @@ vi.mock('../lib/prisma.js', () => ({ prisma: prismaMock }))
 import { prisma } from '../lib/prisma.js'
 import { sessionService } from './sessionService.js'
 
+/** После `vi.mock` Prisma — мок; типы остаются от реального клиента. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pm = prisma as any
+
 beforeEach(() => {
   vi.resetAllMocks()
-  prisma.$transaction.mockImplementation(
-    async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma)
+  pm.$transaction.mockImplementation(async (fn: (tx: typeof pm) => Promise<unknown>) =>
+    fn(pm)
   )
 })
 
 describe('SessionService.submitAnswer', () => {
   it('throws ServiceError 404 when session not found', async () => {
-    prisma.session.findUnique.mockResolvedValueOnce(null)
+    pm.session.findUnique.mockResolvedValueOnce(null)
 
     await expect(
       sessionService.submitAnswer('sid', 'qid', 'A', 'uid')
@@ -39,7 +43,7 @@ describe('SessionService.submitAnswer', () => {
   })
 
   it('throws ServiceError 403 when session belongs to another user', async () => {
-    prisma.session.findUnique.mockResolvedValueOnce({
+    pm.session.findUnique.mockResolvedValueOnce({
       id: 'sid',
       userId: 'other',
       status: 'in_progress',
@@ -52,7 +56,7 @@ describe('SessionService.submitAnswer', () => {
   })
 
   it('throws ServiceError 400 when session already completed', async () => {
-    prisma.session.findUnique.mockResolvedValueOnce({
+    pm.session.findUnique.mockResolvedValueOnce({
       id: 'sid',
       userId: 'uid',
       status: 'completed',
