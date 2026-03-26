@@ -1,0 +1,61 @@
+name: quiz-backend CI
+
+on:
+  push:
+    paths:
+      - "lessons/lr8/quiz-backend/**"
+      - ".github/workflows/quiz-backend-ci.yml"
+  pull_request:
+    paths:
+      - "lessons/lr8/quiz-backend/**"
+      - ".github/workflows/quiz-backend-ci.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: lessons/lr8/quiz-backend
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quiz_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d quiz_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quiz_test
+      JWT_SECRET: test-jwt-secret-for-vitest-min-32-chars!!
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: lessons/lr8/quiz-backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Docker build
+        run: docker build -t quiz-backend:ci .

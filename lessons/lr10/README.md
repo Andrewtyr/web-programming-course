@@ -6,6 +6,8 @@
   - Материалы: [slides.html](docs/slides-standalone/slides.html)
   - Справочные материалы: [GUIDE.md](docs/GUIDE.md) | [CHEATSHEET.md](docs/CHEATSHEET.md) | [Interactive Examples](docs/interactive.html)
 
+- **Практика quiz-backend (теория + запуск тестов):** [QUIZ-BACKEND-LR10.md](QUIZ-BACKEND-LR10.md) — разбор LR10 на примере `lessons/lr8/quiz-backend`
+
 - **Практическая работа:** Объемный блок по тестированию backend
 
 ---
