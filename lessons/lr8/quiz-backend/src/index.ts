@@ -21,16 +21,19 @@ app.route('/api/auth', authRoutes)
 app.route('/api/sessions', sessionsRoutes) 
 app.route('/api/admin', adminRoutes)    
 
-// Запускаем сервер на порту 3000
+// Порт по умолчанию 3001; можно переопределить через PORT в .env
+const port = Number(process.env.PORT) || 3001
+
+// Запускаем сервер
 // Когда запустится — в консоли увидим сообщение
 serve(
   { 
     fetch: app.fetch,   // говорим: "используй наш Hono для обработки запросов"
-    port: 3000          // номер двери (порта), на котором будет слушать компьютер
+    port,               // номер порта, на котором будет слушать компьютер
   }, 
   () => {
     // Это сообщение появляется, когда сервер успешно запустился
-    console.log('Server running on http://localhost:3000')
+    console.log(`Server running on http://localhost:${port}`)
     // Теперь можно открыть браузер или Postman и стучаться к серверу
   }
 )
