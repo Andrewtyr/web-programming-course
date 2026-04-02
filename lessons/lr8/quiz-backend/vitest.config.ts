@@ -12,10 +12,10 @@ const databaseUrl =
   'file:' + path.join(root, 'prisma', 'test.db').replace(/\\/g, '/')
 
 export default defineConfig({
-  poolOptions: {
-    threads: { singleThread: true },
-  },
   test: {
+    poolOptions: {
+      threads: { singleThread: true },
+    },
     include: ['src/**/*.unit.test.ts', 'src/**/*.feature.test.ts'],
     env: {
       DATABASE_URL: databaseUrl,

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { app } from '../../tests/setup/test-app.js'
 import { resetAndSeed, type TestSeed } from '../../tests/setup/test-db.js'
+import { githubIdToApiNumber } from '../utils/userApiMapper.js'
 
 let ctx: TestSeed
 
@@ -32,15 +33,15 @@ describe('GET /api/auth/me', () => {
     expect(body.error).toBe('Invalid token')
   })
 
-  // Нормальный токен студента — возвращаем его профиль (200).
+  // Нормальный токен студента — возвращаем его профиль (200), тело = User (OpenAPI LR5, без обёртки user).
   it('returns 200 with user for valid token', async () => {
     const res = await app.request('/api/auth/me', {
       headers: { Authorization: `Bearer ${ctx.studentToken}` },
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { user: { id: string; email: string | null } }
-    expect(body.user.id).toBe(ctx.student.id)
-    expect(body.user.email).toBe(ctx.student.email)
+    const body = (await res.json()) as { id: string; email: string | null }
+    expect(body.id).toBe(ctx.student.id)
+    expect(body.email).toBe(ctx.student.email)
   })
 })
 
@@ -77,8 +78,8 @@ describe('POST /api/auth/github/callback', () => {
       body: JSON.stringify({ code: 'test_callback_user' }),
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { token: string; user: { githubId: string } }
+    const body = (await res.json()) as { token: string; user: { githubId: number } }
     expect(body.token.length).toBeGreaterThan(10)
-    expect(body.user.githubId).toBe('test_callback_user')
+    expect(body.user.githubId).toBe(githubIdToApiNumber('test_callback_user'))
   })
 })

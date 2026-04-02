@@ -39,7 +39,7 @@ describe('POST /api/sessions', () => {
     expect(body.error).toBe('Validation error')
   })
 
-  // Залогиненный студент создаёт сессию — она привязана к нему, вопросы есть (200).
+  // Залогиненный студент создаёт сессию — 201 + SessionResponse (OpenAPI LR5).
   it('creates a session when authorized', async () => {
     const res = await app.request('/api/sessions', {
       method: 'POST',
@@ -49,13 +49,14 @@ describe('POST /api/sessions', () => {
       },
       body: JSON.stringify({}),
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
     const body = (await res.json()) as {
-      session: { id: string; userId: string }
-      questionCount: number
+      sessionId: string
+      userId: string
+      totalQuestions: number
     }
-    expect(body.session.userId).toBe(ctx.student.id)
-    expect(body.questionCount).toBeGreaterThan(0)
+    expect(body.userId).toBe(ctx.student.id)
+    expect(body.totalQuestions).toBeGreaterThan(0)
   })
 })
 
@@ -70,10 +71,10 @@ describe('GET /api/sessions/:id', () => {
       },
       body: JSON.stringify({}),
     })
-    expect(create.status).toBe(200)
-    const { session } = (await create.json()) as { session: { id: string } }
+    expect(create.status).toBe(201)
+    const created = (await create.json()) as { sessionId: string }
 
-    const res = await app.request(`/api/sessions/${session.id}`, {
+    const res = await app.request(`/api/sessions/${created.sessionId}`, {
       headers: { Authorization: `Bearer ${ctx.otherStudentToken}` },
     })
     expect(res.status).toBe(403)
@@ -91,9 +92,10 @@ describe('GET /api/sessions/:id', () => {
       },
       body: JSON.stringify({}),
     })
-    const { session } = (await create.json()) as { session: { id: string } }
+    expect(create.status).toBe(201)
+    const created = (await create.json()) as { sessionId: string }
 
-    const res = await app.request(`/api/sessions/${session.id}`, {
+    const res = await app.request(`/api/sessions/${created.sessionId}`, {
       headers: { Authorization: `Bearer ${ctx.studentToken}` },
     })
     expect(res.status).toBe(200)

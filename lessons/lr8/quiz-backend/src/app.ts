@@ -4,12 +4,15 @@
  * Точка входа процесса — `index.ts`, который поднимает Node-сервер поверх `app.fetch`.
  */
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import authRoutes from './routes/auth.js'
 import sessionsRoutes from './routes/sessions.js'
 import adminRoutes from './routes/admin.js'
 
 export function createApp() {
   const app = new Hono({ strict: false })
+
+  app.use('*', cors({ origin: '*' }))
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
 

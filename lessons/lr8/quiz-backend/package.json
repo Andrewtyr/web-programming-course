@@ -9,12 +9,13 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "test:unit": "vitest run src/services/scoringService.unit.test.ts src/utils/validation.unit.test.ts src/services/sessionService.unit.test.ts",
-    "test:feature": "vitest run src/routes/auth.feature.test.ts src/routes/sessions.feature.test.ts src/routes/admin.feature.test.ts",
+    "test:unit": "vitest run \"src/**/*.unit.test.ts\"",
+    "test:feature": "vitest run \"src/**/*.feature.test.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "verify:integration": "node scripts/verify-integration.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
