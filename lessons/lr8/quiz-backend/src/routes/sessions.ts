@@ -4,7 +4,7 @@
  * AnswerResult / AnswerPending, SessionResults.
  * Все защищённые действия требуют валидный JWT; бизнес-логика в `sessionService`.
  */
-import { Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma.js'
 import { requireAuth, type AuthEnv } from '../middleware/auth.js'
@@ -25,6 +25,11 @@ import {
 const sessionsRoutes = new Hono<AuthEnv>({ strict: false })
 sessionsRoutes.use('*', requireAuth)
 
+/** Как в `loadSessionQuestions`: вопрос + имя категории для превью. */
+type SessionQuestionWithCategory = Prisma.QuestionGetPayload<{
+  include: { category: { select: { name: true } } }
+}>
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -37,7 +42,7 @@ function shuffle<T>(arr: T[]): T[] {
 /**
  * Загружает вопросы сессии по сохранённому порядку `questionIds` (сессия фиксирует набор попытки).
  */
-async function loadSessionQuestions(session: object) {
+async function loadSessionQuestions(session: object): Promise<SessionQuestionWithCategory[]> {
   const ids = (session as { questionIds?: unknown }).questionIds as string[] | null | undefined
   if (!ids || !Array.isArray(ids) || ids.length === 0) return []
   const qs = await prisma.question.findMany({
@@ -45,7 +50,10 @@ async function loadSessionQuestions(session: object) {
     include: { category: { select: { name: true } } },
   })
   const order = new Map(ids.map((id, i) => [id, i]))
-  return qs.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+  return qs.sort(
+    (a: SessionQuestionWithCategory, b: SessionQuestionWithCategory) =>
+      (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
+  )
 }
 
 /**

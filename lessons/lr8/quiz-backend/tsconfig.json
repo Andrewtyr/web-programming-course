@@ -5,8 +5,7 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "types": ["node"]
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "prisma.config.ts", "vitest.config.ts"],
   "exclude": ["dist", "node_modules"]

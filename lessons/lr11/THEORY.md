@@ -150,7 +150,7 @@ quiz-backend/
 | **`paths:`** | Запуск **только** если менялись файлы под `lessons/lr8/quiz-backend/` или сам workflow — экономия времени. |
 | **`workflow_dispatch`** | Ручной запуск workflow из вкладки Actions (кнопка «Run workflow»). |
 | **`concurrency`** | Если ты быстро пушишь несколько раз подряд, старый прогон отменяется — не копятся десятки одинаковых проверок. |
-| **`permissions: contents: read`** | Репозиторию достаточно **читать** код для checkout; это хорошая практика безопасности. |
+| **`permissions: contents: read`** | У **GITHUB_TOKEN** только право **читать** репозиторий (достаточно для `checkout` кода); лишних прав не выдаём. |
 | **`defaults.run.working-directory`** | Все команды `npm` выполняются **из папки** `lessons/lr8/quiz-backend`, не из корня репозитория. |
 | **`runs-on: ubuntu-latest`** | Виртуальная машина **Ubuntu** — как «типичный сервер Linux». |
 | **`services: postgres`** | Рядом с job поднимается контейнер **PostgreSQL** — как в реальном проекте: тесты идут против настоящей БД. |
