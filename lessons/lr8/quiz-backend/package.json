@@ -11,12 +11,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "lint": "eslint src prisma.config.ts",
-    "test:unit": "vitest run src/services/scoringService.unit.test.ts src/utils/validation.unit.test.ts src/services/sessionService.unit.test.ts",
-    "test:feature": "vitest run src/routes/auth.feature.test.ts src/routes/sessions.feature.test.ts src/routes/admin.feature.test.ts",
+    "test:unit": "vitest run \"src/**/*.unit.test.ts\"",
+    "test:feature": "vitest run \"src/**/*.feature.test.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "prisma:studio": "prisma studio",
+    "verify:integration": "node scripts/verify-integration.mjs",
     "docker:build": "docker build -t quiz-backend:local .",
     "docker:run": "docker run --rm -p 3000:3000 --env-file .env quiz-backend:local",
     "compose:up": "docker compose up --build -d",
@@ -25,7 +26,6 @@
     "ci:local:linux": "bash ./scripts/local-release.sh",
     "ci:local:win": "powershell -ExecutionPolicy Bypass -File .\\scripts\\local-release.ps1"
   },
-
   "dependencies": {
     "@hono/node-server": "^1.19.11",
     "@prisma/adapter-pg": "^7.5.0",

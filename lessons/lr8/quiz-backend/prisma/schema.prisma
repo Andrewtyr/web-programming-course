@@ -47,6 +47,8 @@ model Session {
   user        User      @relation(fields: [userId], references: [id])
   status      String    @default("in_progress") // "in_progress" | "completed" | "expired"
   score       Float?
+  /// Идентификаторы вопросов в порядке прохождения (JSON-массив строк). Задаётся при создании сессии.
+  questionIds Json?
   startedAt   DateTime  @default(now())
   expiresAt   DateTime
   completedAt DateTime?

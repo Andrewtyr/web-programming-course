@@ -1,9 +1,10 @@
 /**
- * Unit-тесты `SessionService`: Prisma замокан через `vi.mock` + `vi.fn()` (без реальной БД).
- * Проверяем доменные ошибки (404/403/400) при невалидной сессии.
+ * Юнит-тесты для SessionService: ответ на вопрос в сессии.
  *
- * Важно: не вызывать `mockDeep` / другие импорты из пакетов внутри `vi.hoisted` —
- * импорты ещё не инициализированы → ReferenceError `__vi_import_*__`.
+ * Настоящую базу не трогаем — подменяем её «заглушкой» (mock).
+ * Так мы быстро проверяем: правильные ли сообщения об ошибках (404, 403, 400).
+ *
+ * Не импортируйте сложные библиотеки внутри vi.hoisted — иначе Vitest может упасть при старте тестов.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -19,31 +20,30 @@ const { prismaMock } = vi.hoisted(() => {
 
 vi.mock('../lib/prisma.js', () => ({ prisma: prismaMock }))
 
-import { prisma } from '../lib/prisma.js'
 import { sessionService } from './sessionService.js'
 
-/** После `vi.mock` Prisma — мок; типы остаются от реального клиента. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pm = prisma as any
-
+// Перед каждым тестом: обнуляем вызовы заглушек.
+// Транзакция в коде имитируется так: вызываем переданную функцию с тем же mock-объектом, что и «база».
 beforeEach(() => {
   vi.resetAllMocks()
-  pm.$transaction.mockImplementation(async (fn: (tx: typeof pm) => Promise<unknown>) =>
-    fn(pm)
+  prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<unknown>) =>
+    fn(prismaMock)
   )
 })
 
 describe('SessionService.submitAnswer', () => {
+  // В базе нет такой сессии — ожидаем ошибку «не найдено» (как HTTP 404).
   it('throws ServiceError 404 when session not found', async () => {
-    pm.session.findUnique.mockResolvedValueOnce(null)
+    prismaMock.session.findUnique.mockResolvedValueOnce(null)
 
     await expect(
       sessionService.submitAnswer('sid', 'qid', 'A', 'uid')
     ).rejects.toMatchObject({ message: 'Session not found', status: 404 })
   })
 
+  // Сессия есть, но принадлежит другому пользователю — чужое трогать нельзя (как HTTP 403).
   it('throws ServiceError 403 when session belongs to another user', async () => {
-    pm.session.findUnique.mockResolvedValueOnce({
+    prismaMock.session.findUnique.mockResolvedValueOnce({
       id: 'sid',
       userId: 'other',
       status: 'in_progress',
@@ -55,8 +55,9 @@ describe('SessionService.submitAnswer', () => {
     ).rejects.toMatchObject({ message: 'Forbidden', status: 403 })
   })
 
+  // Сессия уже завершена — новые ответы не принимаем (как HTTP 400).
   it('throws ServiceError 400 when session already completed', async () => {
-    pm.session.findUnique.mockResolvedValueOnce({
+    prismaMock.session.findUnique.mockResolvedValueOnce({
       id: 'sid',
       userId: 'uid',
       status: 'completed',

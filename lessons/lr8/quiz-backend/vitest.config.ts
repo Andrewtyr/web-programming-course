@@ -7,6 +7,9 @@ import { getTestDatabaseUrl } from './tests/setup/test-database-url.js'
 
 export default defineConfig({
   test: {
+    poolOptions: {
+      threads: { singleThread: true },
+    },
     include: ['src/**/*.unit.test.ts', 'src/**/*.feature.test.ts'],
     env: {
       DATABASE_URL: getTestDatabaseUrl(),
@@ -15,9 +18,6 @@ export default defineConfig({
     globalSetup: ['./tests/setup/global-setup.ts'],
     setupFiles: ['./tests/setup/vitest-setup.ts'],
     fileParallelism: false,
-    poolOptions: {
-      threads: { singleThread: true },
-    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

@@ -7,6 +7,8 @@ import 'dotenv/config'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 
+// Этот файл создаёт один общий экземпляр Prisma-клиента.
+// Дальше весь backend работает с БД через экспорт `prisma`.
 const databaseUrl = process.env.DATABASE_URL
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is not set in .env')

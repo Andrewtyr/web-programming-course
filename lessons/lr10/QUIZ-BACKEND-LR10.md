@@ -1,237 +1,432 @@
-# LR10: quiz-backend — теория, практика и запуск тестов
+# LR10: quiz-backend простыми словами
 
-Проект с разобранной практикой лежит в репозитории: **`lessons/lr8/quiz-backend`**. Ниже — краткая теория, что именно там сделано по LR10, и как всё запускать.
+
+
+Проект: `lessons/lr8/quiz-backend`
 
 ---
 
-## 1. Структура каталогов `quiz-backend`
+## 1) Что это вообще за backend
 
-Упрощённое дерево (без `node_modules`, сгенерированного `coverage/` и локальных БД):
+`quiz-backend` - это сервер для квиза (теста), который:
+- авторизует пользователя (через GitHub callback или test-код);
+- создает сессии прохождения теста;
+- принимает ответы;
+- завершает сессию и считает баллы;
+- дает админу отдельные endpoints для управления вопросами и проверки эссе.
+
+Стек:
+- `Hono` - web framework (маршруты и обработка запросов);
+- `Prisma + SQLite` - работа с базой;
+- `Zod` - проверка входящих данных;
+- `Vitest` - unit/feature тесты и coverage.
+
+---
+
+## 2) Полная структура проекта и роль файлов
 
 ```text
 quiz-backend/
-├── package.json              # скрипты npm, зависимости
-├── tsconfig.json             # настройки TypeScript
-├── prisma.config.ts          # конфиг Prisma CLI (схема, миграции, DATABASE_URL)
-├── vitest.config.ts          # Vitest: тестовая БД, JWT, coverage, setup-файлы
-├── .env                      # секреты и DATABASE_URL (не коммитится)
+├── package.json
+├── tsconfig.json
+├── prisma.config.ts
+├── vitest.config.ts
+├── scripts/
+│   └── verify-integration.mjs     ← опционально: цепочка запросов как у фронта (LR9)
+├── .env
 ├── prisma/
-│   ├── schema.prisma         # модели User, Category, Question, Session, Answer
-│   ├── migrations/           # история миграций SQLite
-│   └── test.db               # SQLite только для автотестов (часто в .gitignore)
+│   ├── schema.prisma              ← Session.questionIds и др.
+│   ├── migrations/
+│   └── test.db                    ← для Vitest (gitignore)
 ├── src/
-│   ├── index.ts              # точка входа процесса: поднять HTTP-сервер
-│   ├── app.ts                  # собрать Hono: /health + /api/*
+│   ├── index.ts                   ← только serve; порт по умолчанию 3001
+│   ├── app.ts                     ← Hono + CORS + маршруты (то же app в тестах)
 │   ├── lib/
-│   │   └── prisma.ts           # singleton PrismaClient
+│   │   └── prisma.ts
 │   ├── middleware/
-│   │   └── admin.ts            # JWT + роль admin
+│   │   ├── auth.ts                ← JWT для /api/sessions (LR9)
+│   │   └── admin.ts
 │   ├── routes/
-│   │   ├── auth.ts             # /api/auth — OAuth, /me
-│   │   ├── sessions.ts         # /api/sessions — квиз
-│   │   ├── admin.ts            # /api/admin — только админ
-│   │   ├── *.feature.test.ts   # feature-тесты API
+│   │   ├── auth.ts
+│   │   ├── sessions.ts
+│   │   ├── admin.ts
+│   │   ├── auth.feature.test.ts
+│   │   ├── sessions.feature.test.ts
+│   │   └── admin.feature.test.ts
 │   ├── services/
-│   │   ├── scoringService.ts   # подсчёт баллов (без БД)
-│   │   ├── sessionService.ts   # сессия квиза, ответы (Prisma)
-│   │   ├── github.ts           # вспомогательный OAuth (опционально)
-│   │   └── *.unit.test.ts
+│   │   ├── scoringService.ts
+│   │   ├── sessionService.ts
+│   │   ├── github.ts
+│   │   ├── scoringService.unit.test.ts
+│   │   └── sessionService.unit.test.ts
 │   └── utils/
-│       ├── validation.ts       # Zod-схемы
-│       └── *.unit.test.ts
+│       ├── validation.ts
+│       ├── validation.unit.test.ts
+│       ├── questionBank.ts        ← разбор correctAnswer (LR9)
+│       ├── sessionApiMappers.ts   ← JSON под OpenAPI LR5
+│       └── userApiMapper.ts
 └── tests/
     └── setup/
-        ├── global-setup.ts     # перед тестами: prisma migrate deploy → test.db
-        ├── vitest-setup.ts     # после тестов: prisma.$disconnect()
-        ├── test-db.ts          # сид данных и JWT для feature-тестов
-        └── test-app.ts         # реэкспорт app из src/app.ts
+        ├── global-setup.ts
+        ├── vitest-setup.ts
+        ├── test-db.ts
+        └── test-app.ts
 ```
 
----
+### Корневые файлы
 
-## 2. Последовательность запуска приложения (прод: `npm run dev` / `npm start`)
+- `package.json`  
+  Скрипты запуска (`dev`, `test`, `test:coverage`) и зависимости.
 
-Цепочка выполняется **один раз при старте процесса Node**, затем сервер ждёт HTTP-запросы.
+- `tsconfig.json`  
+  Настройки TypeScript.
 
-1. **`package.json`** — `tsx` запускает **`src/index.ts`** (или `tsx watch` в dev).
+- `prisma.config.ts`  
+  Настройки Prisma CLI: где схема и миграции, откуда брать `DATABASE_URL`.
 
-2. **`src/index.ts`**
-   - подключает **`dotenv/config`** — переменные из `.env` попадают в `process.env`;
-   - импортирует **`app`** из **`src/app.ts`**;
-   - вызывает **`serve({ fetch: app.fetch, port: 3000 })`** из `@hono/node-server` — привязывает обработчик запросов к порту.
+- `vitest.config.ts`  
+  Настройка тестов: какие файлы запускать, тестовые env-переменные, coverage, setup.
 
-3. При первом импорте **`src/app.ts`**
-   - создаётся экземпляр **Hono**;
-   - регистрируется **`GET /health`**;
-   - **`app.route('/api/auth', authRoutes)`** и т.д. — подключаются модули из **`src/routes/*.ts`**.
+- `.env`  
+  Локальные переменные (`DATABASE_URL`, `JWT_SECRET`, OAuth ключи). Не коммитится.
 
-4. При импорте роутов (например **`auth.ts`**, **`sessions.ts`**, **`admin.ts`**) **по цепочке подтягиваются**:
-   - **`src/lib/prisma.ts`** — при первом обращении к модулю читается `DATABASE_URL`, создаётся **PrismaClient**;
-   - в **`auth.ts`** при загрузке модуля проверяется **`JWT_SECRET`** — если нет, процесс упадёт сразу (fail-fast);
-   - **`admin.ts`** вешает **`requireAdmin`** из **`middleware/admin.ts`** на все пути под `/api/admin`.
+### Папка `prisma`
 
-5. **Готовый сервер** слушает порт **3000**. Дальше каждый запрос обрабатывается **без перезапуска** этой цепочки: Hono выбирает маршрут → middleware (если есть) → handler → при необходимости **Prisma** и **сервисы**.
+- `schema.prisma`  
+  Описание таблиц: `User`, `Category`, `Question`, `Session`, `Answer`.
 
-### Что происходит при одном HTTP-запросе (логически)
+- `migrations/*`  
+  История изменений схемы БД.
 
-1. Запрос попадает в **`app.fetch`** (Hono).
-2. Совпадает префикс: `/api/auth/*`, `/api/sessions/*`, `/api/admin/*` или `/health`.
-3. Для **`/api/admin/*`** сначала выполняется **`requireAdmin`**: разбор Bearer → **verify JWT** → чтение пользователя из БД → проверка **`role === 'admin'`**.
-4. В handler роута: разбор тела (**JSON**), **`Zod.safeParse`** из **`validation.ts`**, вызовы **Prisma** и/или **`sessionService`** / **`scoringService`**, ответ **`c.json(...)`** с нужным статусом.
+- `test.db`  
+  Отдельная SQLite-база для автотестов.
 
-### Запуск тестов (`npm run test`) — отдельная цепочка
+### Папка `src` (основной код backend)
 
-1. Читает **`vitest.config.ts`**: тестовые **`DATABASE_URL`**, **`JWT_SECRET`**, список файлов `*.unit.test.ts` / `*.feature.test.ts`.
-2. **`global-setup.ts`** — миграции на **`prisma/test.db`**.
-3. Загружаются тестовые модули: unit мокают Prisma; feature импортируют **`app`** и вызывают **`resetAndSeed()`** в **`beforeAll`**.
-4. После всех тестов — **`vitest-setup.ts`** отключает Prisma.
+- `index.ts`  
+  Точка входа процесса. Поднимает HTTP-сервер (`serve`); порт из `PORT` или **3001** по умолчанию.
 
-Приложение **как HTTP-сервер в тестах не поднимается** — используется тот же **`app`**, но запросы идут через **`app.request()`** без порта.
+- `app.ts`  
+  Собирает Hono-приложение: **CORS** (для фронта на другом порту), `/health`, `/api/auth`, `/api/sessions`, `/api/admin`. Тот же объект `app` используют feature-тесты.
 
----
+- `lib/prisma.ts`  
+  Создает и экспортирует единый клиент Prisma.
 
-## 3. Справочник: какой файл за что отвечает
+- `middleware/auth.ts`  
+  Проверяет Bearer JWT для защищённых маршрутов (например `/api/sessions`), кладёт `userId` в контекст.
 
-| Файл | Роль |
-|------|------|
-| **`package.json`** | Скрипты (`dev`, `start`, `test`, Prisma), список пакетов. |
-| **`tsconfig.json`** | Компиляция TypeScript (в т.ч. тесты и `vitest.config.ts`). |
-| **`prisma.config.ts`** | Где схема Prisma и миграции; откуда брать `DATABASE_URL` для CLI. |
-| **`prisma/schema.prisma`** | Модели БД: пользователи, категории, вопросы, сессии, ответы. |
-| **`prisma/migrations/**`** | SQL-миграции; `migrate deploy` применяет их к файлу БД. |
-| **`src/index.ts`** | Единственная точка входа **процесса сервера**: `serve` + порт 3000. |
-| **`src/app.ts`** | Сборка **Hono**: маршруты `/health`, `/api/auth`, `/api/sessions`, `/api/admin`. |
-| **`src/lib/prisma.ts`** | Один **PrismaClient** на SQLite через адаптер **better-sqlite3**. |
-| **`src/middleware/admin.ts`** | Проверка JWT и роли **admin** для `/api/admin`. |
-| **`src/routes/auth.ts`** | GitHub callback (или `test_*` код), выдача JWT, **`GET /me`**. |
-| **`src/routes/sessions.ts`** | Создание сессии, ответы, завершение; вызывает **`sessionService`**. |
-| **`src/routes/admin.ts`** | Админские CRUD вопросов, оценка эссе, статистика. |
-| **`src/services/scoringService.ts`** | Чистая математика баллов (multiple-select, эссе по рубрике). |
-| **`src/services/sessionService.ts`** | Транзакции Prisma: ответ на вопрос, завершение сессии, **`ServiceError`**. |
-| **`src/services/github.ts`** | Отдельная обёртка OAuth (при необходимости; основной поток — в `auth.ts`). |
-| **`src/utils/validation.ts`** | **Zod**-схемы тел запросов для всех роутов. |
-| **`vitest.config.ts`** | Режим тестов, env, coverage, какие файлы считать тестами. |
-| **`tests/setup/global-setup.ts`** | Перед тестами: применить миграции к **test.db**. |
-| **`tests/setup/vitest-setup.ts`** | После тестов: отключить Prisma. |
-| **`tests/setup/test-db.ts`** | Очистка и сид БД + JWT для feature-тестов. |
-| **`tests/setup/test-app.ts`** | Удобный импорт **`app`** в feature-тестах. |
-| **`src/**/*.unit.test.ts`** | Unit: логика и Zod без реальной БД (где Prisma — мок). |
-| **`src/**/*.feature.test.ts`** | Feature: полный HTTP-цикл через **`app.request`** и тестовую БД. |
+- `middleware/admin.ts`  
+  Проверяет JWT и роль admin для админских маршрутов.
 
----
+- `routes/auth.ts`  
+  Логин/авторизация: GitHub callback, выдача JWT, `GET /api/auth/me`.
 
-## 4. Теория: зачем слои тестов
+- `routes/sessions.ts`  
+  Работа с сессиями квиза: создать, получить, отправить ответ, завершить.
 
-### Unit-тесты
+- `routes/admin.ts`  
+  Админка: вопросы, batch загрузка, оценка эссе, статистика.
 
-- Проверяют **одну единицу логики** (функцию, класс, схему) **в изоляции**.
-- Внешние зависимости **подменяются моками** (в нашем случае Prisma в unit-тестах сервисов — мок).
-- Плюсы: быстро, стабильно, легко локализовать баг.
-- В проекте: файлы `*.unit.test.ts` рядом с модулями (`scoringService`, `validation`, `sessionService`).
+- `services/scoringService.ts`  
+  Чистая логика подсчета баллов.
 
-### Feature-тесты (интеграционные по API)
+- `services/sessionService.ts`  
+  Бизнес-логика с Prisma (транзакции, проверки владельца сессии, статусы).
 
-- Гоняют **реальное приложение Hono** без открытия порта: `app.request(...)` (или `testClient(app)`).
-- **Prisma не мокается** — используется отдельная **тестовая БД** (`prisma/test.db`), данные сидятся в `beforeAll`.
-- Плюсы: проверяются маршруты, middleware, валидация и ответы как у настоящего HTTP.
+- `utils/validation.ts`  
+  Zod-схемы для проверки payload.
 
-### Что не делаем в LR10
+- `utils/questionBank.ts`, `sessionApiMappers.ts`, `userApiMapper.ts`  
+  Совместимость с OpenAPI LR5: разбор `correctAnswer`, форматы `SessionResponse` / `User`.
 
-- Полноценный **E2E по сети** (отдельный процесс + реальный порт) — тема следующих шагов; для LR10 достаточно `app.request`.
+### Папка `tests/setup`
+
+- `global-setup.ts`  
+  Перед тестами применяет миграции к `prisma/test.db`.
+
+- `vitest-setup.ts`  
+  После тестов закрывает Prisma-подключение.
+
+- `test-db.ts`  
+  Сбрасывает тестовые данные и seed'ит минимальный набор (student/admin/question/token).
+
+- `test-app.ts`  
+  Реэкспорт `app` для feature-тестов.
 
 ---
 
-## 5. Инструменты (коротко)
+## 3) Как приложение запускается по шагам
 
-| Инструмент | Роль |
-|------------|------|
-| **Vitest** | Запуск тестов, watch-режим, coverage (v8). |
-| **Hono** | `app` из `src/app.ts` — тот же объект, что и в проде, только без `serve` в тестах. |
-| **Zod** | Схемы в `src/utils/validation.ts`; в тестах — успешные и неуспешные `safeParse`. |
-| **Prisma** | В feature-тестах — настоящий клиент к SQLite-файлу для тестов. |
-| **vi.mock / vi.fn** | Мок Prisma в unit-тестах `sessionService` без обращения к `mockDeep` внутри `vi.hoisted` с внешним импортом (иначе возможна ошибка инициализации модулей). |
-
----
-
-## 6. Что сделано в `quiz-backend` (по чекпоинтам LR10)
-
-### Инфраструктура
-
-- **`src/app.ts`** — сборка маршрутов и `/health`; импортируется в тестах и в `index.ts`.
-- **`src/index.ts`** — только запуск сервера на порту 3000.
-- **`vitest.config.ts`** — переменные для тестов (`DATABASE_URL` → `prisma/test.db`, `JWT_SECRET`), `globalSetup`, `setupFiles`, `include` для `*.unit.test.ts` / `*.feature.test.ts`, coverage.
-- **`tests/setup/global-setup.ts`** — `prisma migrate deploy` к тестовой БД перед прогоном.
-- **`tests/setup/vitest-setup.ts`** — `prisma.$disconnect()` после всех тестов.
-- **`tests/setup/test-db.ts`** — `resetAndSeed()`: чистка таблиц, пользователи (студент, второй студент, админ), категория, вопрос, JWT.
-- **`tests/setup/test-app.ts`** — реэкспорт `app` для feature-тестов.
-
-### Тесты
-
-- **Unit:** `scoringService.unit.test.ts`, `validation.unit.test.ts`, `sessionService.unit.test.ts` (мок Prisma).
-- **Feature:** `auth.feature.test.ts`, `sessions.feature.test.ts`, `admin.feature.test.ts` — сценарии API и проверки 401/403/400 где нужно.
-
-В исходниках добавлены **файловые комментарии** в начале каждого модуля: что это за файл и зачем он нужен.
-
----
-
-## 7. Как запустить тесты и сервер
-
-Перейти в каталог backend:
+Когда ты запускаешь:
 
 ```bash
-cd lessons/lr8/quiz-backend
+npm run dev
+```
+
+происходит цепочка:
+
+1. `tsx watch src/index.ts` запускает `src/index.ts`.
+2. `index.ts` импортирует `app` из `src/app.ts`.
+3. `app.ts` подключает маршруты:
+   - `authRoutes` (`/api/auth`)
+   - `sessionsRoutes` (`/api/sessions`)
+   - `adminRoutes` (`/api/admin`)
+4. Каждый route-файл при необходимости использует:
+   - `prisma` для БД
+   - `validation` для проверки запроса
+   - `sessionService/scoringService` для бизнес-логики
+   - `requireAdmin` для защиты админских endpoint
+5. `serve({ fetch: app.fetch, port })` начинает слушать порт (часто **3001**).
+6. Любой HTTP-запрос проходит:
+   `route match -> middleware -> validation -> service -> prisma -> json response`.
+
+---
+
+## 4) Что такое unit и feature тесты в этом проекте
+
+### Unit (`*.unit.test.ts`)
+
+Проверяют отдельную логику:
+- `scoringService.unit.test.ts` - формулы подсчета;
+- `validation.unit.test.ts` - схемы Zod;
+- `sessionService.unit.test.ts` - ошибки сервиса при невалидных условиях.
+
+Важно: в unit Prisma мокается (`vi.mock`, `vi.fn`), в БД не ходим.
+
+### Feature (`*.feature.test.ts`)
+
+Проверяют API-сценарии сквозняком через `app.request(...)`:
+- auth flow;
+- sessions flow;
+- admin access/security.
+
+Здесь Prisma не мокается, работает тестовая БД `prisma/test.db`.
+
+### Какие тесты мы написали в LR10 и что каждый делает
+
+Ниже список по файлам (это то, что мы сделали в этой работе).
+
+#### Unit-тесты
+
+- `src/services/scoringService.unit.test.ts`
+  - Проверяет формулы подсчета баллов:
+    - за multiple-select (плюс за правильный, штраф за лишний, минимум 0);
+    - за эссе по рубрике (ограничение max, округление, ошибка при неверной длине rubric).
+  - Зачем: гарантирует, что математика оценивания не "сломается" при правках.
+
+- `src/utils/validation.unit.test.ts`
+  - Проверяет Zod-схемы:
+    - валидные payload проходят;
+    - невалидные (пустые строки, неправильные типы, отрицательные значения и т.п.) отклоняются.
+  - Зачем: API заранее отсекает плохие входные данные.
+
+- `src/services/sessionService.unit.test.ts`
+  - Проверяет негативные ветки бизнес-логики сервиса:
+    - `Session not found` (404),
+    - `Forbidden` (403),
+    - `Session already completed` (400).
+  - Prisma замокан через `vi.mock` + `vi.fn`.
+  - Зачем: быстро и точно проверяем доменные ошибки без реальной БД.
+
+#### Feature-тесты
+
+- `src/routes/auth.feature.test.ts`
+  - Проверяет `/api/auth/me`:
+    - без токена -> 401,
+    - невалидный токен -> 401,
+    - валидный токен -> 200 и **плоский** объект User (OpenAPI LR5, не `{ user: { … } }`).
+  - Проверяет `/api/auth/github/callback`:
+    - плохой JSON -> 400,
+    - невалидный `code` -> 400,
+    - `test_*` code -> 200, токен + `user` с числовым `githubId` (сравнение через `githubIdToApiNumber` в тесте).
+  - Зачем: подтверждает рабочий auth flow целиком.
+
+- `src/routes/sessions.feature.test.ts`
+  - Проверяет создание сессии:
+    - без токена -> 401,
+    - некорректный payload -> 400,
+    - валидный запрос -> **201** + тело в форме **SessionResponse** (OpenAPI LR5: `sessionId`, `userId`, `totalQuestions`, …).
+  - Проверяет доступ к `GET /api/sessions/:id`:
+    - чужая сессия -> 403,
+    - своя сессия -> 200.
+  - Зачем: подтверждает security и корректный session flow.
+
+- `src/routes/admin.feature.test.ts`
+  - Проверяет доступ к `/api/admin/questions`:
+    - без токена -> 401,
+    - student -> 403,
+    - admin -> 200.
+  - Зачем: гарантирует role-based защиту админки.
+
+### Итого по тестам в нашей работе
+
+- Сделали **unit + feature** слой (как требует LR10).
+- Закрыли ключевые **negative cases**: 401, 403, 400.
+- Настроили запуск:
+  - `npm run test`
+  - `npm run test:unit`
+  - `npm run test:feature`
+  - `npm run test:coverage`
+
+---
+
+## 5) Как запустить и проверить все
+
+Из папки `lessons/lr8/quiz-backend`:
+
+```bash
 npm install
-```
-
-### Все автотесты (unit + feature)
-
-```bash
 npm run test
+npm run test:coverage
 ```
 
-Ожидается: все файлы тестов прошли, в конце что-то вроде `Test Files N passed`, `Tests 42 passed` (число может меняться).
-
-### Только unit или только feature
+Отдельно:
 
 ```bash
 npm run test:unit
 npm run test:feature
 ```
 
-Скрипты перечисляют файлы явно — так надёжнее на Windows, чем одна glob-строка с фигурными скобками.
+---
 
-### Покрытие кода
+## 6) Частые ошибки и как чинить
+
+### Ошибка: `ReferenceError: Cannot access '__vi_import_0__' before initialization`
+
+Причина: в `vi.hoisted(...)` вызвали функцию из внешнего импорта (например `mockDeep`).
+
+Решение: внутри `vi.hoisted` использовать только `vi.fn()`/простые объекты.
+
+### Ошибка: `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'`
+
+Нужно, чтобы версии совпадали с Vitest:
 
 ```bash
-npm run test:coverage
+npm i -D vitest@3.2.4 @vitest/coverage-v8@3.2.4
 ```
 
-В консоли — таблица по файлам; при необходимости откройте сгенерированный HTML-отчёт coverage (папка обычно появляется в корне проекта после Vitest — см. вывод).
+### Ошибка: `ENOSPC: no space left on device`
 
-### Ручной smoke (не автотест)
+Нет места на диске. Что сделать:
 
-1. Настройте `.env` в `quiz-backend` (`DATABASE_URL`, `JWT_SECRET`, при необходимости GitHub OAuth).
-2. Запуск:
-
+1. Очистить npm cache:
 ```bash
-npm run dev
+npm cache clean --force
 ```
-
-3. Проверьте `GET http://localhost:3000/health` и сценарии API (Postman/curl) — как в LR10 README.
+2. Удалить тяжелые временные папки (`%TEMP%`, старые логи npm).
+3. Удалить `node_modules` и поставить заново:
+```bash
+rd /s /q node_modules
+del package-lock.json
+npm install
+```
+4. Проверить свободное место на диске (желательно хотя бы 2-4 GB).
 
 ---
 
-## 8. Типичные проблемы
+## 7) Мини-чеклист "готово/не готово"
 
-| Симптом | Причина | Что сделать |
-|---------|---------|-------------|
-| `Cannot access '__vi_import_0__' before initialization` в unit-тесте с Prisma | В `vi.hoisted` вызван импорт из другого пакета (например `mockDeep`) до завершения инициализации модулей | Использовать только `vi.fn()` внутри hoisted или не вызывать внешние импорты в hoisted-колбэке |
-| `No test files found` при `npm run test` с фильтром | На Windows glob с `{unit,feature}` в кавычках ведёт себя иначе | Запускать `npm run test` без лишних аргументов или использовать скрипты из `package.json` |
-| Падения feature-тестов из-за БД | Нет миграций / другой `DATABASE_URL` | Убедиться, что `globalSetup` отработал; для локали — удалить `prisma/test.db` и перезапустить тесты |
+- `npm run test` -> все тесты зеленые.
+- `npm run test:coverage` -> отчет строится без ошибок.
+- `npm run dev` -> сервер стартует и отвечает на `GET /health`.
+- Есть 401/403/400 negative-кейсы в тестах.
+
+Если все пункты зеленые - LR10 практическая часть выполнена корректно.
 
 ---
 
-## 9. Где читать ещё
+## 8) Как читать твой Coverage-отчёт (разбор по строкам)
 
-- Общие цели и чекпоинты LR10: [README.md](README.md) этого каталога.
-- Лекция и шпаргалки: [docs/GUIDE.md](docs/GUIDE.md), [docs/CHEATSHEET.md](docs/CHEATSHEET.md), слайды в `docs/slides-standalone/`.
+Ты видишь таблицу вида:
+- `% Stmts` - сколько покрыто обычных строк кода (statements);
+- `% Branch` - сколько покрыто ветвлений (`if/else`, `try/catch`, разные пути условий);
+- `% Funcs` - сколько функций/методов были вызваны тестами;
+- `% Lines` - покрытие строк (похоже на `% Stmts`, но считается по-своему);
+- `Uncovered Line #s` - номера строк, куда тесты не дошли.
+
+### Что означает верхняя строка
+
+- `All files: 42.74%`  
+  Это **среднее покрытие по всем исходникам** из `src`.
+  Для учебной LR10 это нормально, потому что в работе акцент на:
+  - раздельные unit/feature-тесты,
+  - security/validation negative-cases,
+  - воспроизводимый запуск тестов.
+
+### Разбор твоих блоков
+
+- `src/app.ts -> 100%`  
+  Отлично: сборка приложения и роутов проверяется полностью.
+
+- `src/lib/prisma.ts -> 77.77%, branch 0%`  
+  Непокрыты строки с fail-fast (`DATABASE_URL` отсутствует).  
+  Это ожидаемо: в тестах переменная задана специально, чтобы всё стартовало.
+
+- `src/middleware/admin.ts -> 93.54%`  
+  Почти полностью покрыт; непокрыты редкие ветки ошибок.
+
+- `src/routes/auth.ts -> 56.86%`  
+  Не покрыта большая ветка реального запроса к GitHub OAuth API.  
+  Это нормально для локальных тестов, где используем `test_*` code.
+
+- `src/routes/sessions.ts -> 57.26%`  
+  Покрыт основной flow, но не все edge-cases submit/answer.
+
+- `src/routes/admin.ts -> 18%`  
+  Покрыта только часть админки (доступ/базовый endpoint).  
+  Остальные CRUD/grading/stats сценарии пока без тестов.
+
+- `src/services/scoringService.ts -> 100%`  
+  Отличный unit coverage для чистой бизнес-логики.
+
+- `src/services/sessionService.ts -> 21.21%`  
+  Сейчас покрыты в основном негативные ветки (ошибки).  
+  Happy-path и часть транзакционных сценариев ещё без unit-тестов.
+
+- `src/services/github.ts -> 0%`  
+  Модуль не тестируется отдельно, и это допустимо, если основной auth flow закрыт в route-тестах.
+
+- `src/utils/validation.ts -> 100%`  
+  Отлично: схемы Zod проверены хорошо.
+
+### Вывод по качеству для LR10
+
+По требованиям LR10 у тебя всё ок:
+- тесты запускаются стабильно;
+- есть unit + feature;
+- есть security/validation кейсы;
+- coverage-отчёт получен и проанализирован.
+
+Низкий процент у некоторых файлов не означает "плохо" автоматически.
+Это означает: какие участки кода ещё можно добить дополнительными тестами, если нужен более высокий quality bar.
+
+### Если хочешь поднять Coverage быстро (приоритет)
+
+1. Добавить feature-тесты на админские endpoint в `routes/admin.ts`:
+   - `POST /questions`,
+   - `POST /questions/batch`,
+   - `PUT /questions/:id`,
+   - `GET /answers/pending`,
+   - `POST /answers/:id/grade`,
+   - `GET /students/:userId/stats`.
+
+2. Добавить unit/feature happy-path для `sessionService`:
+   - успешный `submitAnswer` для single/multiple-select,
+   - успешный `submitSession` и подсчёт `score`.
+
+3. Если нужно покрыть OAuth-ветку глубже:
+   - замокать `fetch` в `auth.ts` и проверить реальный обмен code/token/user.
+
+---
+
+## 9) Интеграция с фронтом и полная теория LR10
+
+- Спецификация API для клиента: `lessons/lr5/quiz-api-schema.yaml`. Порт бэкенда по умолчанию **3001** — задайте тот же URL во фронте (`VITE_API_URL` и т.п.).
+- Скрипт **`npm run verify:integration`** (папка `scripts/verify-integration.mjs`) проверяет цепочку health → callback → `/me` → сессия → ответ → submit; сервер должен быть уже запущен (`npm run dev` во втором терминале).
+- Развёрнутая сводка по LR8→LR9→LR10, тестам и проверкам: **[THEORY.md](THEORY.md)** в этой же папке `lessons/lr10`.
+
+---
+
+## 10) LR11: PostgreSQL, Docker и тесты
+
+В ветке с LR11 `quiz-backend` переведён на **PostgreSQL** (`@prisma/adapter-pg`). Vitest использует URL из `tests/setup/test-database-url.ts` (по умолчанию `postgresql://…/quiz_test`). Обычно поднимают БД через **`docker compose`** (см. README в `quiz-backend`), затем `npx prisma migrate deploy` и **`npm run test`**. Файл **`dev.db`** (SQLite) к этой схеме не относится — его не нужно хранить в git.

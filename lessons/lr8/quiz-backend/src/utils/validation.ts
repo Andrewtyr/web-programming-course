@@ -1,6 +1,7 @@
 /**
  * Zod-схемы входящих тел запросов (auth, сессии, админка). Используются в роутерах через `.safeParse`;
  * при ошибке возвращается 400 и детали `flatten()` для отладки клиента.
+ * Схемы сессий и ответов согласованы с LR5 (`CreateSessionRequest`, тело ответа на вопрос, submit).
  */
 import { z } from 'zod'
 
@@ -11,21 +12,36 @@ export const githubCallbackSchema = z.object({
   code: z.string().min(1, 'code is required'),  // код от GitHub — обязательный
 })
 
-// Начать новый тест (сессию)
+// Начать новый тест (сессию) — совместимо с LR5 OpenAPI (CreateSessionRequest) и старым полем categoryId
 export const CreateSessionSchema = z.object({
-  categoryId: z.string().optional(), 
+  categoryId: z.string().optional(),
+  categoryIds: z.array(z.string()).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  questionCount: z.number().int().min(1).max(100).optional(),
 })
 
-// Отправить ответ на один вопрос
-export const AnswerSchema = z.object({
-  sessionId: z.string().optional(),      
-  questionId: z.string().min(1, 'questionId is required'),  
-  userAnswer: z.any(),                   
-})
+// Отправить ответ — LR5: { questionId, selectedOptions?, text? } или legacy { userAnswer }
+export const SubmitAnswerRequestSchema = z
+  .object({
+    sessionId: z.string().optional(),
+    questionId: z.string().min(1, 'questionId is required'),
+    selectedOptions: z.array(z.number().int().min(0)).optional(),
+    text: z.string().optional(),
+    userAnswer: z.any().optional(),
+  })
+  .refine(
+    (d) =>
+      d.userAnswer !== undefined ||
+      d.text !== undefined ||
+      (d.selectedOptions !== undefined && d.selectedOptions.length > 0),
+    { message: 'Provide userAnswer, text, or selectedOptions' }
+  )
 
-// Завершить тест (отправить все ответы на проверку)
+export const AnswerSchema = SubmitAnswerRequestSchema
+
+// Завершить тест — тело может быть пустым (LR5: без body)
 export const SubmitSessionSchema = z.object({
-  sessionId: z.string().optional(),  
+  sessionId: z.string().optional(),
 })
 
 // Поставить оценку за эссе-ответ (только админ)
