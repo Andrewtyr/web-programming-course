@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import authRoutes from './routes/auth.js'        // всё, что связано с входом/регистрацией/логином
 import sessionsRoutes from './routes/sessions.js' // всё про прохождение тестов (сессии, ответы, результат)
 import adminRoutes from './routes/admin.js'      // всё, что может делать только админ (добавлять вопросы и т.д.)
@@ -8,6 +9,9 @@ import adminRoutes from './routes/admin.js'      // всё, что может д
 
 const app = new Hono({ strict: false })  
 // strict: false → не ругаться, если в адресе есть лишний слеш в конце (удобно)
+
+// Браузерный фронт (Vite на другом порту) шлёт запросы с другого origin
+app.use('*', cors({ origin: '*' }))
 
 // Простая проверка: живой ли сервер?
 

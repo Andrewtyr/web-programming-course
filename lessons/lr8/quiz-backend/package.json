@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "verify:integration": "node scripts/verify-integration.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
