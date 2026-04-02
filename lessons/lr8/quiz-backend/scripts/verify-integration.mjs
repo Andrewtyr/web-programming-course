@@ -67,7 +67,8 @@ async function requireOk(res, label) {
 
 async function main() {
   console.log('Проверка API на:', BASE)
-  console.log('(сервер должен быть уже запущен: npm run dev)\n')
+  console.log('(сервер должен быть уже запущен: npm run dev)')
+  console.log('Если POST /api/sessions вернёт 400 про вопросы — один раз выполни: npx prisma db seed\n')
 
   const h = await req(`${BASE}/health`)
   assert(h.ok, `/health ${h.status}`)

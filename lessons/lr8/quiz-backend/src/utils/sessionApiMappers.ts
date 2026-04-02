@@ -145,7 +145,7 @@ export function toAnswerResult(answer: Answer, question: QuestionWithCategory) {
   return base
 }
 
-export function toAnswerPending(answer: Answer, question: QuestionWithCategory) {
+export function toAnswerPending(answer: Answer, _question: QuestionWithCategory) {
   return {
     answerId: answer.id,
     questionId: answer.questionId,

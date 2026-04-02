@@ -26,6 +26,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/quiz
+      # Совпадает с пробросом портов 3000:3000; иначе в коде по умолчанию 3001
+      PORT: "3000"
     depends_on:
       db:
         condition: service_healthy
