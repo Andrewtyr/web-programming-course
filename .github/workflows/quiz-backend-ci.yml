@@ -56,6 +56,12 @@ jobs:
       - name: Install
         run: npm ci
 
+      # package-lock с Windows не всегда подтягивает optional @rollup/* для Linux (npm#4828) — Vitest падает без gnu-бинарника
+      - name: Install Rollup Linux native (Vitest)
+        run: |
+          RV=$(node -p "require('rollup/package.json').version")
+          npm install "@rollup/rollup-linux-x64-gnu@${RV}" --no-save
+
       - name: Lint
         run: npm run lint
 
