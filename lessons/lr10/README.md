@@ -7,6 +7,7 @@
   - Справочные материалы: [GUIDE.md](docs/GUIDE.md) | [CHEATSHEET.md](docs/CHEATSHEET.md) | [Interactive Examples](docs/interactive.html)
 
 - **Разбор проекта простыми словами:** [QUIZ-BACKEND-LR10.md](QUIZ-BACKEND-LR10.md)
+- **Полная сводка (LR8→LR9→LR10, тесты, проверки):** [THEORY.md](THEORY.md)
 
 - **Практическая работа:** Объемный блок по тестированию backend
 

@@ -31,17 +31,20 @@ quiz-backend/
 ├── tsconfig.json
 ├── prisma.config.ts
 ├── vitest.config.ts
+├── scripts/
+│   └── verify-integration.mjs     ← опционально: цепочка запросов как у фронта (LR9)
 ├── .env
 ├── prisma/
-│   ├── schema.prisma
+│   ├── schema.prisma              ← Session.questionIds и др.
 │   ├── migrations/
-│   └── test.db
+│   └── test.db                    ← для Vitest (gitignore)
 ├── src/
-│   ├── index.ts
-│   ├── app.ts
+│   ├── index.ts                   ← только serve; порт по умолчанию 3001
+│   ├── app.ts                     ← Hono + CORS + маршруты (то же app в тестах)
 │   ├── lib/
 │   │   └── prisma.ts
 │   ├── middleware/
+│   │   ├── auth.ts                ← JWT для /api/sessions (LR9)
 │   │   └── admin.ts
 │   ├── routes/
 │   │   ├── auth.ts
@@ -58,7 +61,10 @@ quiz-backend/
 │   │   └── sessionService.unit.test.ts
 │   └── utils/
 │       ├── validation.ts
-│       └── validation.unit.test.ts
+│       ├── validation.unit.test.ts
+│       ├── questionBank.ts        ← разбор correctAnswer (LR9)
+│       ├── sessionApiMappers.ts   ← JSON под OpenAPI LR5
+│       └── userApiMapper.ts
 └── tests/
     └── setup/
         ├── global-setup.ts
@@ -98,13 +104,16 @@ quiz-backend/
 ### Папка `src` (основной код backend)
 
 - `index.ts`  
-  Точка входа процесса. Поднимает HTTP-сервер (`serve`) на 3000 порту.
+  Точка входа процесса. Поднимает HTTP-сервер (`serve`); порт из `PORT` или **3001** по умолчанию.
 
 - `app.ts`  
-  Собирает Hono-приложение: `/health`, `/api/auth`, `/api/sessions`, `/api/admin`.
+  Собирает Hono-приложение: **CORS** (для фронта на другом порту), `/health`, `/api/auth`, `/api/sessions`, `/api/admin`. Тот же объект `app` используют feature-тесты.
 
 - `lib/prisma.ts`  
   Создает и экспортирует единый клиент Prisma.
+
+- `middleware/auth.ts`  
+  Проверяет Bearer JWT для защищённых маршрутов (например `/api/sessions`), кладёт `userId` в контекст.
 
 - `middleware/admin.ts`  
   Проверяет JWT и роль admin для админских маршрутов.
@@ -126,6 +135,9 @@ quiz-backend/
 
 - `utils/validation.ts`  
   Zod-схемы для проверки payload.
+
+- `utils/questionBank.ts`, `sessionApiMappers.ts`, `userApiMapper.ts`  
+  Совместимость с OpenAPI LR5: разбор `correctAnswer`, форматы `SessionResponse` / `User`.
 
 ### Папка `tests/setup`
 
@@ -164,7 +176,7 @@ npm run dev
    - `validation` для проверки запроса
    - `sessionService/scoringService` для бизнес-логики
    - `requireAdmin` для защиты админских endpoint
-5. `serve({ fetch: app.fetch, port: 3000 })` начинает слушать порт.
+5. `serve({ fetch: app.fetch, port })` начинает слушать порт (часто **3001**).
 6. Любой HTTP-запрос проходит:
    `route match -> middleware -> validation -> service -> prisma -> json response`.
 
@@ -222,18 +234,18 @@ npm run dev
   - Проверяет `/api/auth/me`:
     - без токена -> 401,
     - невалидный токен -> 401,
-    - валидный токен -> 200 + user.
+    - валидный токен -> 200 и **плоский** объект User (OpenAPI LR5, не `{ user: { … } }`).
   - Проверяет `/api/auth/github/callback`:
     - плохой JSON -> 400,
     - невалидный `code` -> 400,
-    - `test_*` code -> 200 и выдача токена.
+    - `test_*` code -> 200, токен + `user` с числовым `githubId` (сравнение через `githubIdToApiNumber` в тесте).
   - Зачем: подтверждает рабочий auth flow целиком.
 
 - `src/routes/sessions.feature.test.ts`
   - Проверяет создание сессии:
     - без токена -> 401,
     - некорректный payload -> 400,
-    - валидный запрос -> 200 + session.
+    - валидный запрос -> **201** + тело в форме **SessionResponse** (OpenAPI LR5: `sessionId`, `userId`, `totalQuestions`, …).
   - Проверяет доступ к `GET /api/sessions/:id`:
     - чужая сессия -> 403,
     - своя сессия -> 200.
@@ -404,3 +416,11 @@ npm install
 
 3. Если нужно покрыть OAuth-ветку глубже:
    - замокать `fetch` в `auth.ts` и проверить реальный обмен code/token/user.
+
+---
+
+## 9) Интеграция с фронтом и полная теория LR10
+
+- Спецификация API для клиента: `lessons/lr5/quiz-api-schema.yaml`. Порт бэкенда по умолчанию **3001** — задайте тот же URL во фронте (`VITE_API_URL` и т.п.).
+- Скрипт **`npm run verify:integration`** (папка `scripts/verify-integration.mjs`) проверяет цепочку health → callback → `/me` → сессия → ответ → submit; сервер должен быть уже запущен (`npm run dev` во втором терминале).
+- Развёрнутая сводка по LR8→LR9→LR10, тестам и проверкам: **[THEORY.md](THEORY.md)** в этой же папке `lessons/lr10`.

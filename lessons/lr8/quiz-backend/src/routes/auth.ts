@@ -2,6 +2,7 @@
  * Маршруты `/api/auth`: OAuth GitHub (обмен code на пользователя, upsert в БД, выдача JWT),
  * и `GET /me` — текущий пользователь по Bearer-токену.
  * Коды с префиксом `test_` обходят GitHub API для локальных/тестовых сценариев.
+ * Ответы приведены к OpenAPI LR5: `AuthResponse` с `user` из `mapUserToApi`; `GET /me` — плоский User без обёртки.
  */
 /// <reference types="node" />
 import { Hono } from 'hono'

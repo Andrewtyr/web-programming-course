@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.34% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>29/29</span>
+                <span class='fraction'>41/43</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">33.33% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/0</span>
+                <span class='fraction'>1/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/0</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.34% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>29/29</span>
+                <span class='fraction'>41/43</span>
             </div>
         
             
@@ -111,7 +111,22 @@
 <a name='L46'></a><a href='#L46'>46</a>
 <a name='L47'></a><a href='#L47'>47</a>
 <a name='L48'></a><a href='#L48'>48</a>
-<a name='L49'></a><a href='#L49'>49</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -128,12 +143,27 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -172,21 +202,36 @@ export const githubCallbackSchema = z.object({
   code: z.string().min(1, 'code is required'),  // код от GitHub — обязательный
 })
 &nbsp;
-// Начать новый тест (сессию)
+// Начать новый тест (сессию) — совместимо с LR5 OpenAPI (CreateSessionRequest) и старым полем categoryId
 export const CreateSessionSchema = z.object({
-  categoryId: z.string().optional(), 
+  categoryId: z.string().optional(),
+  categoryIds: z.array(z.string()).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  questionCount: z.number().int().min(1).max(100).optional(),
 })
 &nbsp;
-// Отправить ответ на один вопрос
-export const AnswerSchema = z.object({
-  sessionId: z.string().optional(),      
-  questionId: z.string().min(1, 'questionId is required'),  
-  userAnswer: z.any(),                   
-})
+// Отправить ответ — LR5: { questionId, selectedOptions?, text? } или legacy { userAnswer }
+export const SubmitAnswerRequestSchema = z
+  .object({
+    sessionId: z.string().optional(),
+    questionId: z.string().min(1, 'questionId is required'),
+    selectedOptions: z.array(z.number().int().min(0)).optional(),
+    text: z.string().optional(),
+    userAnswer: z.any().optional(),
+  })
+  .refine(
+    (d) =&gt;
+      d.userAnswer !== <span class="branch-0 cbranch-no" title="branch not covered" >undefined ||</span>
+<span class="cstat-no" title="statement not covered" >      d.text !== <span class="branch-0 cbranch-no" title="branch not covered" >undefined ||</span></span>
+<span class="cstat-no" title="statement not covered" >      (d.selectedOptions !== undefined &amp;&amp; d.selectedOptions.length &gt; 0),</span>
+    { message: 'Provide userAnswer, text, or selectedOptions' }
+  )
 &nbsp;
-// Завершить тест (отправить все ответы на проверку)
+export const AnswerSchema = SubmitAnswerRequestSchema
+&nbsp;
+// Завершить тест — тело может быть пустым (LR5: без body)
 export const SubmitSessionSchema = z.object({
-  sessionId: z.string().optional(),  
+  sessionId: z.string().optional(),
 })
 &nbsp;
 // Поставить оценку за эссе-ответ (только админ)
@@ -214,7 +259,7 @@ export const BatchQuestionsSchema = z.object({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-03-27T02:19:46.642Z
+                at 2026-04-02T03:07:55.451Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

@@ -5,7 +5,7 @@
  */
 import { prisma } from '../lib/prisma.js'
 import { parseQuestionBank } from '../utils/questionBank.js'
-import { scoringService } from './scoringService.js' 
+import { scoringService } from './scoringService.js'
 
 /**
  * Доменная ошибка сервиса.
@@ -34,7 +34,10 @@ function toJson(value: unknown) {
   return value as any
 }
 
-// Главный сервис — всё, что связано с прохождением теста (сессией)
+/**
+ * Прохождение квиза: сохранение ответа и закрытие сессии.
+ * Правильные ответы берутся из `parseQuestionBank(question.correctAnswer)`; подсчёт частично через `scoringService`.
+ */
 class SessionService {
   // Отправить ответ на один вопрос (самая важная функция!)
   async submitAnswer(sessionId: string, questionId: string, userAnswer: unknown, userId: string) {

@@ -1,3 +1,8 @@
+/**
+ * Преобразование сущностей Prisma в JSON **как в OpenAPI LR5** (`quiz-api-schema.yaml`):
+ * `SessionResponse`, превью вопроса, результат ответа, итоговая таблица `SessionResults`.
+ * Здесь нет HTTP — только чистые функции, чтобы и роуты, и тесты могли использовать один формат.
+ */
 import type { Answer, Question, Session } from '@prisma/client'
 import { getOptionsForPreview, parseQuestionBank } from './questionBank.js'
 

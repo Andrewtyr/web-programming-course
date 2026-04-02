@@ -34,7 +34,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-/** object + приведение — чтобы Session из Prisma не конфликтовал с устаревшим кэшем типов без questionIds */
+/**
+ * Загружает вопросы сессии по сохранённому порядку `questionIds` (сессия фиксирует набор попытки).
+ */
 async function loadSessionQuestions(session: object) {
   const ids = (session as { questionIds?: unknown }).questionIds as string[] | null | undefined
   if (!ids || !Array.isArray(ids) || ids.length === 0) return []
@@ -46,6 +48,9 @@ async function loadSessionQuestions(session: object) {
   return qs.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
 }
 
+/**
+ * Приводит тело запроса (индексы `selectedOptions`, `text`, legacy `userAnswer`) к значению для сохранения в БД.
+ */
 function resolveUserAnswer(
   question: {
     id: string

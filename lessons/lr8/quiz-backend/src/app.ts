@@ -1,7 +1,8 @@
 /**
  * Сборка HTTP-приложения на Hono без запуска сервера.
- * Нужна для LR10: feature-тесты вызывают `app.request(...)` без открытого порта.
- * Точка входа процесса — `index.ts`, который поднимает Node-сервер поверх `app.fetch`.
+ * Feature-тесты (LR10) импортируют тот же `app` и вызывают `app.request(...)` без TCP-порта.
+ * `index.ts` только оборачивает `app.fetch` в `@hono/node-server` `serve`.
+ * CORS `origin: '*'` — запросы с другого origin (например Vite dev server).
  */
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'

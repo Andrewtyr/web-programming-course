@@ -1,3 +1,8 @@
+/**
+ * Сборка объекта **User** для ответов API (GET `/api/auth/me`, поле `user` в callback):
+ * числовой `githubId`, `githubUsername`, `avatarUrl`, `role`, опционально имя и фамилия.
+ * Строковый `githubId` из БД превращается в число для схемы фронта (см. `githubIdToApiNumber`).
+ */
 import type { User as PrismaUser } from '@prisma/client'
 
 /** Числовой GitHub id для схемы OpenAPI (LR5); для нечисловых строк — стабильный hash */
