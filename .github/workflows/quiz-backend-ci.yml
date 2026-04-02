@@ -11,6 +11,14 @@ on:
       - ".github/workflows/quiz-backend-ci.yml"
   workflow_dispatch:
 
+# Один активный прогон на ветку — меньше шума при пушах
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: lessons/lr8/quiz-backend
@@ -35,15 +43,15 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quiz_test
       JWT_SECRET: test-jwt-secret-for-vitest-min-32-chars!!
+      DOCKER_BUILDKIT: 1
 
     steps:
       - uses: actions/checkout@v4
 
+      # Без встроенного cache: npm — реже ловятся предупреждения git (exit 128) из backend кэша
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: lessons/lr8/quiz-backend/package-lock.json
 
       - name: Install
         run: npm ci
@@ -57,5 +65,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Docker build
-        run: docker build -t quiz-backend:ci .
+        run: docker build --progress=plain -t quiz-backend:ci .
