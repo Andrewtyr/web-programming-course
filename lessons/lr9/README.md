@@ -5,6 +5,7 @@
 - **Лекция (90 минут):** Теория Advanced Backend разработки
   - Материалы: [slides.html](docs/slides-standalone/slides.html) | [slides-speech.md](docs/slides-speech.md)
   - Справочные материалы: [GUIDE.md](docs/GUIDE.md) | [CHEATSHEET.md](docs/CHEATSHEET.md) | [Interactive Examples](docs/interactive.html)
+  - Сводка по текущему `quiz-backend` (фронт OpenAPI LR5, новые файлы, проверка): [THEORY.md](THEORY.md) — разделы «Согласование с фронтендом (OpenAPI LR5)» и «Что проверить перед сдачей»
 
 - **Практическая работа (следующая неделя, 180 минут):** Реализация бизнес-логики
 
