@@ -1,6 +1,6 @@
 # LR11 + quiz-backend: теория и практика (что сделано, термины, Docker, команды)
 
-Документ описывает **проект `lessons/lr8/quiz-backend`**: что реализовано по лабораторным (LR8–11), **словарь терминов**, **структуру файлов**, **роль Docker**, **все основные команды** для проверки и сдачи.
+Документ описывает **проект `lessons/lr8/quiz-backend`**: что реализовано по лабораторным (LR8–11), **словарь терминов**, **структуру файлов**, **роль Docker**, **CI в GitHub Actions** (файл workflow, шаги, что дорабатывалось), **все основные команды** для проверки и сдачи, плюс **мини-сценарий защиты** для тех, кто не хочет углубляться в код.
 
 ---
 
@@ -11,7 +11,7 @@
 | **LR8** | Backend на Hono + Prisma + SQLite/PostgreSQL: пользователи, сессии квиза, ответы, админка, подсчёт баллов. |
 | **LR9** | Согласование API с **OpenAPI LR5** (`User`, `SessionResponse`, ответы, итоги), JWT, `questionIds`, mappers, `verify:integration`. |
 | **LR10** | **Vitest**: unit + feature тесты, Zod, coverage; `app.ts` отдельно от `index.ts` для тестов без порта. |
-| **LR11** | **Docker**: multi-stage `Dockerfile`, **Docker Compose** (backend + Postgres), скрипты healthcheck / local-release / rollback, **GitHub Actions** CI, порт **3000** в compose, **seed** БД для проверок. |
+| **LR11** | **Docker**: multi-stage `Dockerfile`, **Docker Compose** (backend + Postgres), скрипты healthcheck / local-release / rollback, **GitHub Actions** CI (`quiz-backend-ci.yml`: lint, тесты с Postgres, build, `docker build`), порт **3000** в compose, **seed** БД для проверок. |
 
 Итог: воспроизводимый backend, который можно запускать локально, в контейнерах и проверять тестами и скриптами.
 
@@ -55,6 +55,12 @@
 | **Healthcheck** | Проверка «сервис жив»: в compose для Postgres — `pg_isready`, backend ждёт healthy БД. |
 | **CI (Continuous Integration)** | Автоматический прогон при push/PR: lint, test, build, иногда `docker build`. |
 | **GitHub Actions** | CI на серверах GitHub: workflow в `.github/workflows/*.yml`. |
+| **Workflow** | Один «сценарий» в GitHub Actions: когда запускается, какие шаги выполняются. |
+| **Job** | Блок внутри workflow (у нас один job: `lint-test-build`). |
+| **Step** | Один шаг внутри job: например «установить Node», «запустить тесты». |
+| **Runner** | Виртуальная машина на сервере GitHub (у нас **Ubuntu Linux**). |
+| **Lint** | Автоматическая проверка стиля и типичных ошибок в коде (ESLint). |
+| **Rollup / Vitest** | Vitest запускает тесты; внутри используется Rollup; на Linux нужен нативный бинарник Rollup под эту ОС. |
 | **Smoke-check** | Короткая проверка после деплоя: `/health`, иногда один защищённый endpoint. |
 
 ---
@@ -119,6 +125,76 @@ quiz-backend/
 ```
 
 Корень репозитория курса: **`.github/workflows/quiz-backend-ci.yml`** — CI для этой папки.
+
+---
+
+## 5.1. CI (GitHub Actions) — простыми словами
+
+**Зачем это тебе на защите:** можно показать, что код не только «у меня запускается», но и **автоматически проверяется на сервере** при каждом push в ветку с `quiz-backend`.
+
+### Что происходит без программистского жаргона
+
+1. Ты делаешь **push** в GitHub (загружаешь изменения в репозиторий).
+2. GitHub видит: «в папке `lessons/lr8/quiz-backend` что-то поменялось» (или поменялся сам файл workflow).
+3. Запускается **workflow** `quiz-backend CI` — это заранее описанный сценарий.
+4. На **чужом компьютере** (Linux в облаке GitHub) по очереди выполняются шаги: поставить Node, установить зависимости, проверить код, прогнать тесты, собрать проект, собрать Docker-образ.
+5. Если всё зелёное — значит, проверки прошли. Если красное — в логе видно **на каком шаге** упало (Lint, Test, Build, Docker build).
+
+**Важно:** CI работает на **Linux**, а у тебя дома может быть **Windows**. Иногда из-за этого всплывают различия (см. раздел про Rollup ниже) — это нормальная учебная ситуация, её как раз закрывают настройкой CI.
+
+### Файл `.github/workflows/quiz-backend-ci.yml` — что за что отвечает
+
+| Часть файла | Простыми словами |
+|-------------|------------------|
+| **`on: push` / `pull_request`** | Когда запускать: при push в репозиторий или при открытии/обновлении Pull Request. |
+| **`paths:`** | Запуск **только** если менялись файлы под `lessons/lr8/quiz-backend/` или сам workflow — экономия времени. |
+| **`workflow_dispatch`** | Ручной запуск workflow из вкладки Actions (кнопка «Run workflow»). |
+| **`concurrency`** | Если ты быстро пушишь несколько раз подряд, старый прогон отменяется — не копятся десятки одинаковых проверок. |
+| **`permissions: contents: read`** | Репозиторию достаточно **читать** код для checkout; это хорошая практика безопасности. |
+| **`defaults.run.working-directory`** | Все команды `npm` выполняются **из папки** `lessons/lr8/quiz-backend`, не из корня репозитория. |
+| **`runs-on: ubuntu-latest`** | Виртуальная машина **Ubuntu** — как «типичный сервер Linux». |
+| **`services: postgres`** | Рядом с job поднимается контейнер **PostgreSQL** — как в реальном проекте: тесты идут против настоящей БД. |
+| **`env: DATABASE_URL` / `JWT_SECRET`** | Переменные окружения для тестов (тестовая БД и секрет для JWT в тестах). |
+| **`DOCKER_BUILDKIT: 1`** | Современный режим сборки Docker (быстрее и предсказуемее логи). |
+| **`actions/checkout`** | Скачать твой код из репозитория на runner. |
+| **`actions/setup-node`** | Установить **Node.js 22** для шагов с `npm`. |
+| **`npm ci`** | Чистая установка зависимостей **строго по `package-lock.json`** (как на проде). |
+| **Шаг «Install Rollup Linux native»** | Обход известной проблемы npm: lockfile, сделанный на **Windows**, не всегда подтягивает **linux-**бинарник Rollup; без него Vitest на Ubuntu падает. После `npm ci` дополнительно ставится пакет `@rollup/rollup-linux-x64-gnu` той же версии, что и `rollup`. |
+| **`npm run lint`** | Проверка ESLint. |
+| **`npm run test`** | Vitest: unit + feature тесты. |
+| **`npm run build`** | Сборка TypeScript в `dist/` (production). |
+| **`docker/setup-buildx-action`** | Подготовка сборки Docker-образа на runner. |
+| **`docker build ...`** | Проверка, что **Dockerfile** собирается (образ готов к запуску в контейнере). |
+
+### Что дорабатывалось по ходу работы (кратко для отчёта/зачёта)
+
+Можно честно сформулировать так:
+
+1. **Код:** убраны явные типы `any` в пользу типов Prisma (`TransactionClient`, `InputJsonValue`, `DbNull` для JSON) — проходят **lint** и **TypeScript** на Linux.
+2. **CI:** добавлены `permissions`, `concurrency`, BuildKit и **Docker Buildx**, убран встроенный кэш npm в `setup-node` (реже шумят предупреждения про git в интерфейсе GitHub).
+3. **Тесты на Ubuntu:** после `npm ci` добавлена установка **`@rollup/rollup-linux-x64-gnu`** (совпадает с версией `rollup`), чтобы **Vitest** не падал из‑за optional dependencies и lockfile с Windows ([обсуждение npm](https://github.com/npm/cli/issues/4828)).
+
+### Предупреждения в интерфейсе GitHub (зелёный workflow, но есть жёлтые значки)
+
+- **«Node 20 deprecated»** у старых версий **actions** — это про среду, в которой работает *сама* утилита checkout/setup-node; на успех прогона обычно не влияет. При обновлении курса workflow можно перевести на более новые версии actions.
+- **`git` exit code 128** в аннотациях часто связано с **кэшем** или служебными шагами GitHub, а не с твоим кодом. Если job **зелёный** — на защите можно сказать: «предупреждение есть, но пайплайн прошёл».
+
+---
+
+## 5.2. Как сдать работу, если в программировании не силён
+
+Используй этот сценарий как **шпаргалку**: не нужно запоминать термины — достаточно показать преподавателю артефакты.
+
+| Шаг | Что сделать | Что показать / сказать |
+|-----|-------------|------------------------|
+| 1 | Открыть репозиторий на GitHub → **Actions** | «Вот workflow **quiz-backend CI**». |
+| 2 | Открыть **последний успешный** запуск (зелёная галочка) | «Он прошёл после моего push». |
+| 3 | Нажать на job **lint-test-build** | «Сначала ставятся зависимости, потом lint, тесты, сборка, Docker». |
+| 4 | Локально (по желанию) выполнить в `quiz-backend` те же команды, что в CI | `npm ci` → `npm run lint` → `npm run test` → `npm run build` → `docker build -t quiz-backend:local .` |
+| 5 | Показать файл **`.github/workflows/quiz-backend-ci.yml`** в редакторе | «Это сценарий CI: когда запускается и какие шаги идут». |
+| 6 | Устно | «CI проверяет качество кода, тесты и что образ Docker собирается; тесты используют PostgreSQL как на сервере». |
+
+Если спросят **про отличие Windows и Linux** — ответ: «локально у меня Windows, на GitHub тесты идут на Linux; для Rollup мы в CI дополнительно ставим linux-пакет, чтобы тесты не падали».
 
 ---
 
@@ -196,8 +272,9 @@ curl http://localhost:3000/health
 7. `npx prisma db seed` — один раз при пустой БД `quiz`.  
 8. `npm run dev` → `npm run verify:integration` — все шаги пройдены.  
 9. `docker compose up -d` → `curl` на **3000**/health — `ok`.  
-10. На GitHub: workflow **quiz-backend-ci** зелёный после push.  
-11. При необходимости: `npm run ci:local:win` — локальный smoke.
+10. На GitHub: workflow **quiz-backend-ci** зелёный после push (вкладка **Actions** → последний run → job **lint-test-build** — все шаги зелёные).  
+11. При необходимости: `npm run ci:local:win` — локальный smoke.  
+12. На защите: открыть `.github/workflows/quiz-backend-ci.yml` и кратко объяснить шаги (см. раздел **5.1** и **5.2**).
 
 ---
 
@@ -212,6 +289,9 @@ curl http://localhost:3000/health
 | Docker `DATABASE_URL` не задан при generate | `prisma.config.ts` | В builder задать заглушку `ENV DATABASE_URL=...`. |
 | В контейнере порт 3001, снаружи 3000 | Не задан `PORT` | В `docker-compose` задать `PORT=3000`. |
 | Сеть при `npm ci` в Docker | Нестабильный интернет | Повторить, DNS, `NPM_CONFIG_*` в Dockerfile. |
+| CI: `Cannot find module @rollup/rollup-linux-x64-gnu` | Lockfile с **Windows**, на **Linux** в CI не подтянулся optional-пакет Rollup | В workflow после `npm ci` ставится `@rollup/rollup-linux-x64-gnu` той же версии, что `rollup` (уже в `quiz-backend-ci.yml`). |
+| CI: падение на **Lint** | `any`, ошибки ESLint или TypeScript | Исправить по сообщению в логе шага **Lint**. |
+| CI: падение на **Test** | БД, миграции, тесты | Смотреть лог шага **Test**; локально `npm test` с Postgres. |
 
 ---
 
@@ -223,4 +303,4 @@ curl http://localhost:3000/health
 
 ---
 
-**Итог:** этот документ фиксирует **термины**, **структуру**, **роль Docker**, **все основные команды** и **порядок проверки** для сдачи лабораторной работы по backend и DevOps в рамках курса.
+**Итог:** этот документ фиксирует **термины**, **структуру**, **роль Docker**, **как устроен CI** (файл `quiz-backend-ci.yml`, шаги, типичные проблемы Windows/Linux), **все основные команды** и **порядок проверки и защиты** — в том числе для тех, кто хочет сдать работу, опираясь на чеклисты и зелёный прогон на GitHub, а не на глубокое знание кода.
