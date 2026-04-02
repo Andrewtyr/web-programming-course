@@ -13,9 +13,9 @@ const databaseUrl =
 
 export default defineConfig({
   test: {
-    poolOptions: {
-      threads: { singleThread: true },
-    },
+    // Vitest 4: poolOptions → верхний уровень; один поток — как раньше singleThread
+    pool: 'threads',
+    maxWorkers: 1,
     include: ['src/**/*.unit.test.ts', 'src/**/*.feature.test.ts'],
     env: {
       DATABASE_URL: databaseUrl,

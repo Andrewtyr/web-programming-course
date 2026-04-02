@@ -1,9 +1,9 @@
 /**
  * Единый клиент Prisma для SQLite через адаптер better-sqlite3.
- * `DATABASE_URL` задаёт путь к файлу БД (см. `.env`). Используется во всех роутерах и сервисах.
+ * `DATABASE_URL` в `process.env` (в рантайме сервера задаётся через `dotenv` в `index.ts`, в тестах — в `vitest.config`).
+ * Не импортируем `dotenv` здесь: иначе `.env` перезапишет URL тестовой БД до подстановки Vitest.
  */
 /// <reference types="node" />
-import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 
