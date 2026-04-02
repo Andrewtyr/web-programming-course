@@ -3,6 +3,7 @@
  * через `scoringService`) и завершение сессии с итоговым score.
  * Ошибки домена — `ServiceError` с HTTP-статусом для маршрутов.
  */
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { parseQuestionBank } from '../utils/questionBank.js'
 import { scoringService } from './scoringService.js'
@@ -30,8 +31,8 @@ function toStringArray(value: unknown): string[] {
   return []
 }
 
-function toJson(value: unknown) {
-  return value as any
+function toJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue
 }
 
 /**
@@ -43,7 +44,7 @@ class SessionService {
   async submitAnswer(sessionId: string, questionId: string, userAnswer: unknown, userId: string) {
     // Всё делаем в одной транзакции:
     // если любой шаг падает, БД откатит изменения, и состояние останется целостным.
-    return prisma.$transaction(async (tx: any) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Ищем сессию (тест, который проходит человек)
       const session = await tx.session.findUnique({ where: { id: sessionId } })
 
@@ -114,7 +115,7 @@ class SessionService {
 
   // Завершить тест — посчитать все баллы и закрыть сессию
   async submitSession(sessionId: string, userId: string) {
-    return prisma.$transaction(async (tx: any) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Ищем сессию вместе с текущими ответами для подсчёта итогового score
       const session = await tx.session.findUnique({
         where: { id: sessionId },

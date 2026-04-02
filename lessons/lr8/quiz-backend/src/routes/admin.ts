@@ -2,6 +2,7 @@
  * Маршруты `/api/admin`: CRUD вопросов, пакетная загрузка, модерация эссе, статистика.
  * Перед каждым обработчиком — middleware `requireAdmin` (JWT + роль `admin` в БД).
  */
+import { Prisma } from '@prisma/client'
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma.js'                    // связь с базой
 import { requireAdmin } from '../middleware/admin.js'       // проверка: только админ может сюда заходить
@@ -57,7 +58,8 @@ adminRoutes.post('/questions', async (c) => {
       text: q.text,
       type: q.type,
       categoryId: q.categoryId,
-      correctAnswer: (q.correctAnswer ?? null) as any,
+      correctAnswer:
+        q.correctAnswer == null ? Prisma.DbNull : (q.correctAnswer as Prisma.InputJsonValue),
       points: q.points,
     },
   })
@@ -79,7 +81,8 @@ adminRoutes.post('/questions/batch', async (c) => {
     text: q.text,
     type: q.type,
     categoryId: q.categoryId,
-    correctAnswer: (q.correctAnswer ?? null) as any,
+    correctAnswer:
+      q.correctAnswer == null ? Prisma.DbNull : (q.correctAnswer as Prisma.InputJsonValue),
     points: q.points,
   }))
 
@@ -116,7 +119,14 @@ adminRoutes.put('/questions/:id', async (c) => {
       ...(d.text !== undefined ? { text: d.text as string } : {}),
       ...(d.type !== undefined ? { type: d.type as string } : {}),
       ...(d.categoryId !== undefined ? { categoryId: d.categoryId as string } : {}),
-      ...(d.correctAnswer !== undefined ? { correctAnswer: d.correctAnswer as any } : {}),
+      ...(d.correctAnswer !== undefined
+        ? {
+            correctAnswer:
+              d.correctAnswer === null
+                ? Prisma.DbNull
+                : (d.correctAnswer as Prisma.InputJsonValue),
+          }
+        : {}),
       ...(d.points !== undefined ? { points: d.points as number } : {}),
     },
   })
@@ -173,7 +183,7 @@ adminRoutes.post('/answers/:id/grade', async (c) => {
   const { score } = parsed.data
 
   try {
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const answer = await tx.answer.findUnique({
         where: { id },
         include: { question: true, session: true },
