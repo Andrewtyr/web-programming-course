@@ -1,19 +1,14 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-
-type ServerTodo = {
-  id: number;
-  title: string;
-  done: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-// TODO(PWA): расширьте типы под офлайн-очередь операций.
-type QueueAction = {
-  id: string;
-  type: 'create' | 'toggle' | 'delete';
-  ts: number;
-};
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ServerTodo } from './todoTypes';
+import {
+  allocateClientTodoId,
+  loadQueue,
+  mergeTodos,
+  newQueueId,
+  remapTodoRefsInQueue,
+  saveQueue,
+  type QueueItem,
+} from './offlineQueue';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -70,35 +65,132 @@ async function apiDelete(todoId: number): Promise<void> {
   }
 }
 
-function registerServiceWorkerStarter() {
-  // TODO(PWA-1): зарегистрируйте Service Worker.
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  } catch (error) {
+    console.warn('Service Worker registration failed', error);
+  }
+}
+
+type SyncState = 'idle' | 'syncing' | 'error';
+
+function enqueueCreate(queue: QueueItem[], title: string): QueueItem[] {
+  const clientTodoId = allocateClientTodoId();
+  const item: QueueItem = {
+    queueId: newQueueId(),
+    type: 'create',
+    clientTodoId,
+    title,
+    ts: Date.now(),
+  };
+  return [...queue, item];
+}
+
+function enqueueToggle(queue: QueueItem[], todoRef: number, done: boolean): QueueItem[] {
+  const item: QueueItem = {
+    queueId: newQueueId(),
+    type: 'toggle',
+    todoRef,
+    done,
+    ts: Date.now(),
+  };
+  return [...queue, item];
+}
+
+function enqueueDelete(queue: QueueItem[], todoRef: number): QueueItem[] {
+  const item: QueueItem = {
+    queueId: newQueueId(),
+    type: 'delete',
+    todoRef,
+    ts: Date.now(),
+  };
+  return [...queue, item];
 }
 
 export default function App() {
-  const [todos, setTodos] = useState<ServerTodo[]>([]);
+  const [serverTodos, setServerTodos] = useState<ServerTodo[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>(() => loadQueue());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [message, setMessage] = useState<string>('');
   const [inputValue, setInputValue] = useState<string>('');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
-  const [queueActions] = useState<QueueAction[]>([]);
+  const [syncState, setSyncState] = useState<SyncState>('idle');
+
+  const syncingRef = useRef(false);
+  const didBootSyncRef = useRef(false);
+
+  const displayTodos = useMemo(() => mergeTodos(serverTodos, queue), [serverTodos, queue]);
 
   const refreshFromServer = useCallback(async () => {
-    const serverTodos = await apiFetchTodos();
-    setTodos(serverTodos);
+    const items = await apiFetchTodos();
+    setServerTodos(items);
   }, []);
+
+  useEffect(() => {
+    saveQueue(queue);
+  }, [queue]);
+
+  const runSync = useCallback(async () => {
+    if (!navigator.onLine || syncingRef.current) return;
+    let q = loadQueue();
+    if (q.length === 0) return;
+
+    syncingRef.current = true;
+    setSyncState('syncing');
+    setMessage('Синхронизация с сервером…');
+
+    try {
+      while (q.length > 0) {
+        const op = q[0];
+
+        if (op.type === 'create') {
+          const created = await apiCreate(op.title);
+          const tempId = op.clientTodoId;
+          const realId = created.id;
+          q = remapTodoRefsInQueue(q.slice(1), tempId, realId);
+        } else if (op.type === 'toggle') {
+          await apiToggle(op.todoRef, op.done);
+          q = q.slice(1);
+        } else {
+          await apiDelete(op.todoRef);
+          q = q.slice(1);
+        }
+
+        saveQueue(q);
+        setQueue(q);
+        await refreshFromServer();
+      }
+
+      setSyncState('idle');
+      setMessage('Очередь синхронизирована.');
+    } catch {
+      setSyncState('error');
+      setMessage('Не удалось синхронизировать. Проверьте сеть и нажмите «Синхронизация».');
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [refreshFromServer]);
 
   const onCreate = useCallback(
     async (title: string) => {
       const trimmed = title.trim();
       if (!trimmed) return;
 
+      if (!navigator.onLine) {
+        setQueue((prev) => enqueueCreate(prev, trimmed));
+        setMessage('Нет сети: задача добавлена в очередь.');
+        return;
+      }
+
       try {
         await apiCreate(trimmed);
         await refreshFromServer();
         setMessage('Задача добавлена.');
       } catch {
-        // TODO(PWA-3): если сеть недоступна, положить create-действие в офлайн-очередь.
-        setMessage('Не удалось добавить задачу. Реализуйте офлайн-очередь для этого сценария.');
+        setQueue((prev) => enqueueCreate(prev, trimmed));
+        setMessage('Сеть недоступна: задача добавлена в очередь.');
       }
     },
     [refreshFromServer]
@@ -106,13 +198,21 @@ export default function App() {
 
   const onToggle = useCallback(
     async (todo: ServerTodo) => {
+      const nextDone = !todo.done;
+
+      if (!navigator.onLine) {
+        setQueue((prev) => enqueueToggle(prev, todo.id, nextDone));
+        setMessage('Нет сети: изменение добавлено в очередь.');
+        return;
+      }
+
       try {
-        await apiToggle(todo.id, !todo.done);
+        await apiToggle(todo.id, nextDone);
         await refreshFromServer();
         setMessage('Статус обновлен.');
       } catch {
-        // TODO(PWA-3): при ошибке сети не терять toggle-действие, а складывать в очередь.
-        setMessage('Не удалось обновить статус. Добавьте fallback в офлайн-очередь.');
+        setQueue((prev) => enqueueToggle(prev, todo.id, nextDone));
+        setMessage('Сеть недоступна: изменение добавлено в очередь.');
       }
     },
     [refreshFromServer]
@@ -120,13 +220,19 @@ export default function App() {
 
   const onDelete = useCallback(
     async (todo: ServerTodo) => {
+      if (!navigator.onLine) {
+        setQueue((prev) => enqueueDelete(prev, todo.id));
+        setMessage('Нет сети: удаление добавлено в очередь.');
+        return;
+      }
+
       try {
         await apiDelete(todo.id);
         await refreshFromServer();
         setMessage('Задача удалена.');
       } catch {
-        // TODO(PWA-3): при ошибке сети не терять delete-действие, а складывать в очередь.
-        setMessage('Не удалось удалить задачу. Добавьте fallback в офлайн-очередь.');
+        setQueue((prev) => enqueueDelete(prev, todo.id));
+        setMessage('Сеть недоступна: удаление добавлено в очередь.');
       }
     },
     [refreshFromServer]
@@ -143,7 +249,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    registerServiceWorkerStarter();
+    void registerServiceWorker();
 
     let cancelled = false;
 
@@ -152,7 +258,11 @@ export default function App() {
         await refreshFromServer();
       } catch {
         if (!cancelled) {
-          setMessage('Не удалось загрузить данные. Проверьте, что backend запущен.');
+          if (navigator.onLine) {
+            setMessage('Не удалось загрузить данные. Проверьте, что backend запущен.');
+          } else {
+            setMessage('Офлайн: показаны локальные задачи и очередь.');
+          }
         }
       } finally {
         if (!cancelled) {
@@ -169,13 +279,41 @@ export default function App() {
   }, [refreshFromServer]);
 
   useEffect(() => {
-    // TODO(PWA-2): добавьте обработчики online/offline.
-    // window.addEventListener('online', ...)
-    // window.addEventListener('offline', ...)
-    // и обновляйте isOnline + message.
+    const onOnline = () => {
+      setIsOnline(true);
+      setMessage('Сеть восстановлена. Запускаем синхронизацию…');
+      void runSync();
+    };
+
+    const onOffline = () => {
+      setIsOnline(false);
+      setMessage('Нет сети. Изменения попадают в офлайн-очередь.');
+    };
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
 
     setIsOnline(navigator.onLine);
-  }, []);
+
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [runSync]);
+
+  useEffect(() => {
+    if (isLoading || didBootSyncRef.current) return;
+    didBootSyncRef.current = true;
+    if (!navigator.onLine) return;
+    if (loadQueue().length === 0) return;
+    void runSync();
+  }, [isLoading, runSync]);
+
+  const syncDisabled = syncState === 'syncing' || queue.length === 0 || !isOnline;
+  const mutationsDisabled = syncState === 'syncing';
+
+  const syncLabel =
+    syncState === 'syncing' ? 'Синхронизация…' : syncState === 'error' ? 'Повторить sync' : 'Синхронизация';
 
   return (
     <main className="app">
@@ -184,9 +322,7 @@ export default function App() {
         <span className={`badge ${isOnline ? 'online' : 'offline'}`}>{isOnline ? 'online' : 'offline'}</span>
       </header>
 
-      <p className="muted">
-        Есть: online CRUD. Реализовать: PWA, offline-очередь и синхронизацию после reconnect.
-      </p>
+      <p className="muted">PWA: manifest, Service Worker, индикатор сети, офлайн-очередь и синхронизация после reconnect.</p>
 
       <form className="toolbar" onSubmit={onSubmit}>
         <input
@@ -196,39 +332,53 @@ export default function App() {
           required
           value={inputValue}
           onChange={(event) => setInputValue(event.target.value)}
+          disabled={mutationsDisabled}
         />
-        <button type="submit">Добавить</button>
-        <button type="button" disabled>
-          Синхронизация (TODO)
+        <button type="submit" disabled={mutationsDisabled}>
+          Добавить
+        </button>
+        <button
+          type="button"
+          disabled={syncDisabled}
+          onClick={() => {
+            setSyncState('idle');
+            void runSync();
+          }}
+        >
+          {syncLabel}
         </button>
       </form>
 
       <section className="meta">
-        <span className="badge">Офлайн-очередь: {queueActions.length}</span>
-        <span className="badge">sync: TODO</span>
-      </section>
-
-      <section className="todo-note">
-        <p>
-          TODO(PWA-4): реализуйте очередь операций и автоматическую отправку после события <code>online</code>.
-        </p>
+        <span className="badge">Офлайн-очередь: {queue.length}</span>
+        <span
+          className={`badge ${
+            syncState === 'syncing' ? 'syncing' : syncState === 'error' ? 'error' : 'neutral'
+          }`}
+        >
+          sync: {syncState}
+        </span>
       </section>
 
       {message ? <div className="message">{message}</div> : null}
       {isLoading ? <p>Загрузка...</p> : null}
-      {!isLoading && todos.length === 0 ? <div className="empty">Пока нет задач</div> : null}
+      {!isLoading && displayTodos.length === 0 ? <div className="empty">Пока нет задач</div> : null}
 
       <ul className="list">
-        {todos.map((todo) => (
+        {displayTodos.map((todo) => (
           <li className="item" key={todo.id}>
-            <button type="button" onClick={() => void onToggle(todo)}>
+            <button type="button" disabled={mutationsDisabled} onClick={() => void onToggle(todo)}>
               {todo.done ? '✅' : '⬜'}
             </button>
             <div>
               <div className={todo.done ? 'done' : ''}>{todo.title}</div>
-              <div className="hint">Сервер · {toLocalText(todo.updatedAt)}</div>
+              <div className="hint">
+                {todo.createdAt === '' && todo.updatedAt === ''
+                  ? 'Ожидает синхронизации'
+                  : `Сервер · ${toLocalText(todo.updatedAt)}`}
+              </div>
             </div>
-            <button type="button" onClick={() => void onDelete(todo)}>
+            <button type="button" disabled={mutationsDisabled} onClick={() => void onDelete(todo)}>
               Удалить
             </button>
             <span className="hint">#{todo.id}</span>

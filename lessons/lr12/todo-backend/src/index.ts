@@ -9,11 +9,24 @@ import { createTodo, deleteTodo, listTodos, updateTodo } from './db.js';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const port = Number(process.env.PORT ?? 3001);
-const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+
+const defaultCorsOrigins = ['http://localhost:5173', 'http://localhost:4173'];
+
+function parseCorsOrigins(raw: string | undefined): string[] {
+  const fromEnv = raw?.trim()
+    ? raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+  return [...new Set([...defaultCorsOrigins, ...fromEnv])];
+}
+
+const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN);
 
 const app = new Hono();
 
-app.use('/api/*', cors({ origin: corsOrigin }));
+app.use('/api/*', cors({ origin: corsOrigins }));
 
 app.get('/', (c) => {
   return c.json({
@@ -104,6 +117,6 @@ serve(
   },
   (info) => {
     console.log(`Todo backend started: http://localhost:${info.port}`);
-    console.log(`CORS origin: ${corsOrigin}`);
+    console.log(`CORS origins: ${corsOrigins.join(', ')}`);
   }
 );

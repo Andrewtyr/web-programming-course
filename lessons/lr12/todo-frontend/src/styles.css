@@ -30,6 +30,11 @@ body {
   font-weight: 600;
 }
 
+.neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+
 .online {
   background: #dcfce7;
   color: #166534;
