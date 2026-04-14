@@ -1,3 +1,9 @@
+# Локальный стек «как на сервере»: PostgreSQL + backend в одной сети Docker.
+# Запуск: docker compose up -d
+# Остановка и удаление тома БД: docker compose down -v
+#
+# Имена сервисов (db, backend) — это DNS-имена внутри сети compose: в DATABASE_URL хост = db, не localhost.
+
 services:
   db:
     image: postgres:16-alpine
@@ -6,11 +12,15 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: quiz
     volumes:
+      # Данные БД переживают перезапуск контейнера
       - postgres_data:/var/lib/postgresql/data
+      # При первом создании тома выполнится SQL (например CREATE DATABASE для тестов)
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/02-init-test-db.sql
     ports:
+      # Postgres с хоста (для prisma migrate local / IDE): localhost:5432
       - "5432:5432"
     healthcheck:
+      # backend стартует только когда Postgres реально принимает подключения
       test: ["CMD-SHELL", "pg_isready -U postgres -d quiz"]
       interval: 5s
       timeout: 5s
@@ -18,15 +28,19 @@ services:
       start_period: 10s
 
   backend:
+    # Собирается из Dockerfile в этой же папке; тег quiz-backend:local
     image: quiz-backend:local
     build: .
+    # Слева порт на твоём ПК, справа — внутри контейнера (приложение слушает PORT).
+    # На Windows низкие порты (3000, 3002) часто в excludedportrange Hyper-V — используем 18080 на хосте.
     ports:
-      - "3000:3000"
+      - "18080:3000"
     env_file:
+      # Секреты и опции с хоста (JWT, OAuth…); не кладём .env внутрь образа
       - .env
     environment:
+      # Перекрывает DATABASE_URL из .env: внутри сети compose хост БД — имя сервиса db
       DATABASE_URL: postgresql://postgres:postgres@db:5432/quiz
-      # Совпадает с пробросом портов 3000:3000; иначе в коде по умолчанию 3001
       PORT: "3000"
     depends_on:
       db:
